@@ -30,7 +30,7 @@ export function ExportImport({ handles, onImport }: ExportImportProps) {
 	};
 
 	return (
-		<div className="p-4 border-b border-gray-200 dark:border-gray-700">
+		<div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
 			<div className="flex gap-2 flex-wrap">
 				<button
 					type="button"
@@ -75,10 +75,6 @@ export function ExportImport({ handles, onImport }: ExportImportProps) {
 					</div>
 				</div>
 			)}
-
-			<div className="mt-2 text-xs text-gray-400">
-				{handles.size} subscribed account{handles.size !== 1 ? "s" : ""}
-			</div>
 		</div>
 	);
 }

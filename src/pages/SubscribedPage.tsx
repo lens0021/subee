@@ -69,7 +69,9 @@ export function SubscribedPage({
 	return (
 		<>
 			<FloatingRefreshButton onRefresh={refresh} />
-			<ExportImport handles={handles} onImport={handleImport} />
+			<div className="sticky top-[52px] z-30 bg-white dark:bg-gray-900">
+				<ExportImport handles={handles} onImport={handleImport} />
+			</div>
 			<PostList
 				posts={posts}
 				loading={loading}

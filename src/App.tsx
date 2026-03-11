@@ -35,6 +35,15 @@ export default function App() {
 		isSubscribed,
 	} = useSubscriptions();
 
+	// Prevent browser back button from closing the PWA.
+	// Push a sentinel state on mount, then re-push it on every popstate.
+	useEffect(() => {
+		window.history.pushState({ subee: true }, "");
+		const onPopState = () => window.history.pushState({ subee: true }, "");
+		window.addEventListener("popstate", onPopState);
+		return () => window.removeEventListener("popstate", onPopState);
+	}, []);
+
 	const switchTab = (tab: Tab) => {
 		saveScroll(activeTab, window.scrollY);
 		setActiveTab(tab);
