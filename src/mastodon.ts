@@ -105,9 +105,10 @@ export async function exchangeCodeForToken(
 	return data.access_token;
 }
 
-// --- Account ID cache ---
+// --- Caches ---
 
 const ACCOUNT_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const STATUS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 interface CachedAccount {
 	id: string;
@@ -115,6 +116,13 @@ interface CachedAccount {
 }
 
 const accountCache = new Map<string, CachedAccount>();
+
+interface CachedStatuses {
+	statuses: mastodon.v1.Status[];
+	cachedAt: number;
+}
+
+const statusCache = new Map<string, CachedStatuses>();
 
 // --- Timeline / Account API ---
 
@@ -151,10 +159,20 @@ export async function fetchAccountStatuses(
 	params?: { maxId?: string; limit?: number },
 	accessToken?: string,
 ): Promise<mastodon.v1.Status[]> {
+	const cacheKey = `${instanceUrl}:${accountId}:${params?.maxId ?? ""}`;
+	const cached = statusCache.get(cacheKey);
+	if (cached && Date.now() - cached.cachedAt < STATUS_CACHE_TTL) {
+		return cached.statuses;
+	}
 	const url = new URL(
 		`${instanceBase(instanceUrl)}/api/v1/accounts/${accountId}/statuses`,
 	);
 	if (params?.maxId) url.searchParams.set("max_id", params.maxId);
 	url.searchParams.set("limit", String(params?.limit ?? 20));
-	return apiFetch<mastodon.v1.Status[]>(url.toString(), accessToken);
+	const statuses = await apiFetch<mastodon.v1.Status[]>(
+		url.toString(),
+		accessToken,
+	);
+	statusCache.set(cacheKey, { statuses, cachedAt: Date.now() });
+	return statuses;
 }
