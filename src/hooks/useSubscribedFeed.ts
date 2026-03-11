@@ -4,6 +4,8 @@ import { useCallback, useRef, useState } from "react";
 import { fetchAccountStatuses, lookupAccount, parseHandle } from "../mastodon";
 
 const PAGE_SIZE = 20;
+const CONCURRENCY = 10;
+const FLUSH_EVERY = 20; // update UI after every N accounts complete
 
 interface AccountCursor {
 	accountId: string;
@@ -13,33 +15,84 @@ interface AccountCursor {
 	done: boolean;
 }
 
+export interface FeedProgress {
+	done: number;
+	total: number;
+	phase: "resolving" | "loading";
+}
+
+// Run tasks with a fixed concurrency limit.
+// Safe in single-threaded JS: the index increment is synchronous.
+async function concurrent(
+	tasks: (() => Promise<void>)[],
+	limit: number,
+): Promise<void> {
+	let i = 0;
+	const worker = async () => {
+		while (i < tasks.length) {
+			await tasks[i++]();
+		}
+	};
+	await Promise.all(
+		Array.from({ length: Math.min(limit, tasks.length) }, worker),
+	);
+}
+
 export function useSubscribedFeed(handles: Set<string>, accessToken: string) {
 	const [posts, setPosts] = useState<mastodon.v1.Status[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [progress, setProgress] = useState<FeedProgress | null>(null);
 	const cursorsRef = useRef<Map<string, AccountCursor>>(new Map());
 	const initializedRef = useRef(false);
 	const loadingRef = useRef(false);
+	// Buffer for progressive rendering — flushed in batches to avoid
+	// running an expensive sort on every single account response.
+	const pendingRef = useRef<mastodon.v1.Status[]>([]);
+
+	const flush = useCallback(() => {
+		if (pendingRef.current.length === 0) return;
+		const toAdd = pendingRef.current.splice(0);
+		setPosts((prev) => {
+			const all = [...prev, ...toAdd];
+			const deduped = [...new Map(all.map((p) => [p.id, p])).values()];
+			return orderBy(deduped, (p) => p.createdAt, "desc");
+		});
+	}, []);
 
 	const initCursors = useCallback(async () => {
+		const handlesList = [...handles];
 		const newCursors = new Map<string, AccountCursor>();
-		for (const handle of handles) {
-			const { username, instanceUrl } = parseHandle(handle);
-			try {
-				const account = await lookupAccount(instanceUrl, username);
-				newCursors.set(handle, {
-					accountId: account.id,
-					instanceUrl,
-					handle,
-					done: false,
+		let done = 0;
+
+		setProgress({ done: 0, total: handlesList.length, phase: "resolving" });
+
+		await concurrent(
+			handlesList.map((handle) => async () => {
+				const { username, instanceUrl } = parseHandle(handle);
+				try {
+					const account = await lookupAccount(instanceUrl, username);
+					newCursors.set(handle, {
+						accountId: account.id,
+						instanceUrl,
+						handle,
+						done: false,
+					});
+				} catch {
+					// Account unreachable — skip silently
+				}
+				setProgress({
+					done: ++done,
+					total: handlesList.length,
+					phase: "resolving",
 				});
-			} catch {
-				// Account not found, skip
-			}
-		}
+			}),
+			CONCURRENCY,
+		);
+
 		cursorsRef.current = newCursors;
 		initializedRef.current = true;
-	}, [handles, accessToken]);
+	}, [handles]);
 
 	const fetchMore = useCallback(async () => {
 		if (loadingRef.current) return;
@@ -52,51 +105,62 @@ export function useSubscribedFeed(handles: Set<string>, accessToken: string) {
 		}
 
 		try {
-			const newPosts: mastodon.v1.Status[] = [];
+			const pending = [...cursorsRef.current.values()].filter((c) => !c.done);
+			let completed = 0;
 
-			for (const [handle, cursor] of cursorsRef.current) {
-				if (cursor.done) continue;
-				try {
-					const results = await fetchAccountStatuses(
-						cursor.instanceUrl,
-						cursor.accountId,
-						{ limit: PAGE_SIZE, maxId: cursor.maxId },
-					);
-					if (results.length < PAGE_SIZE) {
-						cursorsRef.current.set(handle, { ...cursor, done: true });
-					}
-					if (results.length > 0) {
-						cursorsRef.current.set(handle, {
-							...cursor,
-							maxId: results[results.length - 1].id,
-						});
-						newPosts.push(...results);
-					}
-				} catch {
-					// Skip failed accounts
-				}
-			}
+			setProgress({ done: 0, total: pending.length, phase: "loading" });
 
-			setPosts((prev) => {
-				const all = [...prev, ...newPosts];
-				const deduped = [...new Map(all.map((p) => [p.id, p])).values()];
-				return orderBy(deduped, (p) => p.createdAt, "desc");
-			});
+			await concurrent(
+				pending.map((cursor) => async () => {
+					try {
+						const results = await fetchAccountStatuses(
+							cursor.instanceUrl,
+							cursor.accountId,
+							{ limit: PAGE_SIZE, maxId: cursor.maxId },
+						);
+						if (results.length < PAGE_SIZE) {
+							cursorsRef.current.set(cursor.handle, { ...cursor, done: true });
+						}
+						if (results.length > 0) {
+							cursorsRef.current.set(cursor.handle, {
+								...cursor,
+								maxId: results[results.length - 1].id,
+							});
+							pendingRef.current.push(...results);
+						}
+					} catch {
+						// Skip failed accounts
+					}
+					completed++;
+					setProgress({
+						done: completed,
+						total: pending.length,
+						phase: "loading",
+					});
+					if (completed % FLUSH_EVERY === 0) flush();
+				}),
+				CONCURRENCY,
+			);
+
+			flush(); // final flush for any remainder
 		} catch (e) {
 			setError(String(e));
 		} finally {
 			loadingRef.current = false;
 			setLoading(false);
+			setProgress(null);
 		}
-	}, [initCursors, accessToken]);
+	}, [initCursors, flush]);
 
 	const refresh = useCallback(async () => {
 		cursorsRef.current = new Map();
 		initializedRef.current = false;
 		loadingRef.current = false;
+		pendingRef.current = [];
 		setPosts([]);
+		setProgress(null);
 		await fetchMore();
 	}, [fetchMore]);
 
-	return { posts, loading, error, fetchMore, refresh };
+	return { posts, loading, error, progress, fetchMore, refresh };
 }

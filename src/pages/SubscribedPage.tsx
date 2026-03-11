@@ -3,6 +3,7 @@ import { ExportImport } from "../components/ExportImport";
 import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
 import { useSubscribedFeed } from "../hooks/useSubscribedFeed";
+import type { FeedProgress } from "../hooks/useSubscribedFeed";
 import { saveSubscriptions } from "../store/subscriptions";
 
 interface SubscribedPageProps {
@@ -24,10 +25,8 @@ export function SubscribedPage({
 	isSubscribed,
 	initialScrollY,
 }: SubscribedPageProps) {
-	const { posts, loading, error, fetchMore, refresh } = useSubscribedFeed(
-		handles,
-		accessToken,
-	);
+	const { posts, loading, error, progress, fetchMore, refresh } =
+		useSubscribedFeed(handles, accessToken);
 
 	useEffect(() => {
 		if (handles.size > 0) fetchMore();
@@ -75,6 +74,7 @@ export function SubscribedPage({
 				posts={posts}
 				loading={loading}
 				error={error}
+				progress={progress}
 				onLoadMore={fetchMore}
 				onRefresh={refresh}
 				onSubscribe={onSubscribe}

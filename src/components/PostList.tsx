@@ -1,6 +1,7 @@
 import type { mastodon } from "masto";
 import { Component, useEffect } from "react";
 import type { ReactNode } from "react";
+import type { FeedProgress } from "../hooks/useSubscribedFeed";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { PostCard } from "./PostCard";
 
@@ -25,6 +26,7 @@ interface PostListProps {
 	posts: mastodon.v1.Status[];
 	loading: boolean;
 	error: string | null;
+	progress?: FeedProgress | null;
 	onLoadMore: () => void;
 	onRefresh: () => void;
 	onSubscribe: (handle: string) => void;
@@ -34,10 +36,35 @@ interface PostListProps {
 	onMount?: () => void;
 }
 
+function ProgressBar({ progress }: { progress: FeedProgress }) {
+	const pct =
+		progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
+	const label =
+		progress.phase === "resolving"
+			? `Resolving accounts… ${progress.done} / ${progress.total}`
+			: `Loading posts… ${progress.done} / ${progress.total}`;
+
+	return (
+		<div className="px-4 py-3">
+			<div className="flex justify-between text-xs text-gray-400 mb-1">
+				<span>{label}</span>
+				<span>{pct}%</span>
+			</div>
+			<div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
+				<div
+					className="bg-blue-500 h-1 rounded-full transition-all duration-300"
+					style={{ width: `${pct}%` }}
+				/>
+			</div>
+		</div>
+	);
+}
+
 export function PostList({
 	posts,
 	loading,
 	error,
+	progress,
 	onLoadMore,
 	onRefresh,
 	onSubscribe,
@@ -80,9 +107,11 @@ export function PostList({
 					/>
 				</PostCardErrorBoundary>
 			))}
-			{loading && (
+			{loading && progress ? (
+				<ProgressBar progress={progress} />
+			) : loading ? (
 				<div className="p-4 text-center text-gray-400">Loading...</div>
-			)}
+			) : null}
 			{!loading && posts.length === 0 && (
 				<div className="p-8 text-center text-gray-400">
 					<p className="mb-3">No posts yet.</p>
