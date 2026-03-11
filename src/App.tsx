@@ -1,7 +1,7 @@
 import { faSignOutAlt } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { useEffect, useRef, useState } from "react";
-import { FloatingRefreshButton } from "./components/FloatingRefreshButton";
+import { debounce } from "lodash";
+import { useEffect, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { useSubscriptions } from "./hooks/useSubscriptions";
 import { PublicPage } from "./pages/PublicPage";
@@ -11,19 +11,22 @@ import { saveSubscriptions } from "./store/subscriptions";
 
 type Tab = "public" | "subscribed";
 
+const SCROLL_KEYS: Record<Tab, string> = {
+	public: "subee:scroll:public",
+	subscribed: "subee:scroll:subscribed",
+};
+
+function readScroll(tab: Tab): number {
+	return Number(sessionStorage.getItem(SCROLL_KEYS[tab]) ?? 0);
+}
+
+function saveScroll(tab: Tab, y: number) {
+	sessionStorage.setItem(SCROLL_KEYS[tab], String(y));
+}
+
 export default function App() {
 	const { auth, status, error: authError, login, logout } = useAuth();
 	const [activeTab, setActiveTab] = useState<Tab>("public");
-	const scrollPos = useRef<Record<Tab, number>>({ public: 0, subscribed: 0 });
-
-	const switchTab = (tab: Tab) => {
-		scrollPos.current[activeTab] = window.scrollY;
-		setActiveTab(tab);
-	};
-
-	useEffect(() => {
-		window.scrollTo(0, scrollPos.current[activeTab]);
-	}, [activeTab]);
 	const {
 		handles,
 		loading: subsLoading,
@@ -31,6 +34,26 @@ export default function App() {
 		unsubscribe,
 		isSubscribed,
 	} = useSubscriptions();
+
+	const switchTab = (tab: Tab) => {
+		saveScroll(activeTab, window.scrollY);
+		setActiveTab(tab);
+	};
+
+	// Restore saved scroll when switching tabs
+	useEffect(() => {
+		window.scrollTo(0, readScroll(activeTab));
+	}, [activeTab]);
+
+	// Periodically save scroll position for the active tab
+	useEffect(() => {
+		const save = debounce(() => saveScroll(activeTab, window.scrollY), 300);
+		window.addEventListener("scroll", save, { passive: true });
+		return () => {
+			window.removeEventListener("scroll", save);
+			save.cancel();
+		};
+	}, [activeTab]);
 
 	const handleSubscribe = (handle: string) => {
 		if (isSubscribed(handle)) {
@@ -126,6 +149,7 @@ export default function App() {
 						accessToken={auth.accessToken}
 						onSubscribe={handleSubscribe}
 						isSubscribed={isSubscribed}
+						initialScrollY={readScroll("public")}
 					/>
 				</div>
 				<div className={activeTab !== "subscribed" ? "hidden" : ""}>
@@ -136,6 +160,7 @@ export default function App() {
 						onHandlesChange={handleHandlesChange}
 						onSubscribe={handleSubscribe}
 						isSubscribed={isSubscribed}
+						initialScrollY={readScroll("subscribed")}
 					/>
 				</div>
 			</main>
