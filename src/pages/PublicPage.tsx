@@ -36,6 +36,8 @@ export function PublicPage({
 				onRefresh={refresh}
 				onSubscribe={onSubscribe}
 				isSubscribed={isSubscribed}
+				instanceUrl={instanceUrl}
+				accessToken={accessToken}
 			/>
 		</>
 	);

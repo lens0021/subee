@@ -28,6 +28,15 @@ async function apiFetch<T>(url: string, accessToken?: string): Promise<T> {
 	return camelize(await res.json()) as T;
 }
 
+async function apiPost<T>(url: string, accessToken: string): Promise<T> {
+	const res = await fetch(url, {
+		method: "POST",
+		headers: { Authorization: `Bearer ${accessToken}` },
+	});
+	if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+	return camelize(await res.json()) as T;
+}
+
 // Parse "@user@instance.social" or "user@instance.social" into parts
 export function parseHandle(handle: string): {
 	username: string;
@@ -61,7 +70,7 @@ export async function registerApp(
 		body: JSON.stringify({
 			client_name: "subee",
 			redirect_uris: getRedirectUri(),
-			scopes: "read",
+			scopes: "read write",
 			website: getRedirectUri(),
 		}),
 	});
@@ -78,7 +87,7 @@ export function buildAuthorizationUrl(
 	url.searchParams.set("client_id", clientId);
 	url.searchParams.set("redirect_uri", getRedirectUri());
 	url.searchParams.set("response_type", "code");
-	url.searchParams.set("scope", "read");
+	url.searchParams.set("scope", "read write");
 	return url.toString();
 }
 
@@ -97,7 +106,7 @@ export async function exchangeCodeForToken(
 			redirect_uri: getRedirectUri(),
 			grant_type: "authorization_code",
 			code,
-			scope: "read",
+			scope: "read write",
 		}),
 	});
 	if (!res.ok) throw new Error(`Failed to exchange token: ${await res.text()}`);
@@ -123,6 +132,9 @@ interface CachedStatuses {
 }
 
 const statusCache = new Map<string, CachedStatuses>();
+
+// localStatusId cache: post URL → local status ID on the user's instance
+const localStatusIdCache = new Map<string, string>();
 
 // --- Timeline / Account API ---
 
@@ -175,4 +187,78 @@ export async function fetchAccountStatuses(
 	);
 	statusCache.set(cacheKey, { statuses, cachedAt: Date.now() });
 	return statuses;
+}
+
+// --- Interactions ---
+
+// Resolve a post URL to a status ID on the user's own instance.
+// Uses /api/v1/search with resolve=true so cross-instance posts are fetched.
+async function resolveStatus(
+	instanceUrl: string,
+	postUrl: string,
+	accessToken: string,
+): Promise<string> {
+	const cached = localStatusIdCache.get(postUrl);
+	if (cached) return cached;
+	const url = new URL(`${instanceBase(instanceUrl)}/api/v1/search`);
+	url.searchParams.set("q", postUrl);
+	url.searchParams.set("resolve", "true");
+	url.searchParams.set("type", "statuses");
+	url.searchParams.set("limit", "1");
+	const result = await apiFetch<{ statuses: mastodon.v1.Status[] }>(
+		url.toString(),
+		accessToken,
+	);
+	const id = result.statuses[0]?.id;
+	if (!id) throw new Error("Post not found on your instance");
+	localStatusIdCache.set(postUrl, id);
+	return id;
+}
+
+export async function reblogStatus(
+	instanceUrl: string,
+	postUrl: string,
+	accessToken: string,
+): Promise<void> {
+	const id = await resolveStatus(instanceUrl, postUrl, accessToken);
+	await apiPost(
+		`${instanceBase(instanceUrl)}/api/v1/statuses/${id}/reblog`,
+		accessToken,
+	);
+}
+
+export async function unreblogStatus(
+	instanceUrl: string,
+	postUrl: string,
+	accessToken: string,
+): Promise<void> {
+	const id = await resolveStatus(instanceUrl, postUrl, accessToken);
+	await apiPost(
+		`${instanceBase(instanceUrl)}/api/v1/statuses/${id}/unreblog`,
+		accessToken,
+	);
+}
+
+export async function favouriteStatus(
+	instanceUrl: string,
+	postUrl: string,
+	accessToken: string,
+): Promise<void> {
+	const id = await resolveStatus(instanceUrl, postUrl, accessToken);
+	await apiPost(
+		`${instanceBase(instanceUrl)}/api/v1/statuses/${id}/favourite`,
+		accessToken,
+	);
+}
+
+export async function unfavouriteStatus(
+	instanceUrl: string,
+	postUrl: string,
+	accessToken: string,
+): Promise<void> {
+	const id = await resolveStatus(instanceUrl, postUrl, accessToken);
+	await apiPost(
+		`${instanceBase(instanceUrl)}/api/v1/statuses/${id}/unfavourite`,
+		accessToken,
+	);
 }

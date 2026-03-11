@@ -7,6 +7,7 @@ import { saveSubscriptions } from "../store/subscriptions";
 
 interface SubscribedPageProps {
 	handles: Set<string>;
+	instanceUrl: string;
 	accessToken: string;
 	onHandlesChange: (handles: Set<string>) => void;
 	onSubscribe: (handle: string) => void;
@@ -15,6 +16,7 @@ interface SubscribedPageProps {
 
 export function SubscribedPage({
 	handles,
+	instanceUrl,
 	accessToken,
 	onHandlesChange,
 	onSubscribe,
@@ -61,6 +63,8 @@ export function SubscribedPage({
 				onRefresh={refresh}
 				onSubscribe={onSubscribe}
 				isSubscribed={isSubscribed}
+				instanceUrl={instanceUrl}
+				accessToken={accessToken}
 			/>
 		</>
 	);

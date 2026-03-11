@@ -9,9 +9,17 @@ import { formatDistanceToNow } from "date-fns";
 import parse from "html-react-parser";
 import type { mastodon } from "masto";
 import { useState } from "react";
+import {
+	favouriteStatus,
+	reblogStatus,
+	unfavouriteStatus,
+	unreblogStatus,
+} from "../mastodon";
 
 interface PostCardProps {
 	status: mastodon.v1.Status;
+	instanceUrl: string;
+	accessToken: string;
 	onSubscribe: (handle: string) => void;
 	isSubscribed: (handle: string) => boolean;
 }
@@ -156,15 +164,70 @@ function AccountInfo({
 	);
 }
 
-export function PostCard({ status, onSubscribe, isSubscribed }: PostCardProps) {
+export function PostCard({
+	status,
+	instanceUrl,
+	accessToken,
+	onSubscribe,
+	isSubscribed,
+}: PostCardProps) {
 	const [cwOpen, setCwOpen] = useState(false);
 	const actual = status.reblog ?? status;
 	const hasCw = !!actual.spoilerText;
 	const showContent = !hasCw || cwOpen;
 
+	const [reblogged, setReblogged] = useState(actual.reblogged ?? false);
+	const [favourited, setFavourited] = useState(actual.favourited ?? false);
+	const [reblogsCount, setReblogsCount] = useState(actual.reblogsCount ?? 0);
+	const [favouritesCount, setFavouritesCount] = useState(
+		actual.favouritesCount ?? 0,
+	);
+	const [reblogging, setReblogging] = useState(false);
+	const [favouriting, setFavouring] = useState(false);
+
 	const createdAt = actual.createdAt ? new Date(actual.createdAt) : new Date();
 	const relativeTime = formatDistanceToNow(createdAt, { addSuffix: true });
 	const absoluteTime = createdAt.toLocaleString();
+
+	const handleReblog = async () => {
+		if (reblogging || !actual.url) return;
+		setReblogging(true);
+		try {
+			if (reblogged) {
+				await unreblogStatus(instanceUrl, actual.url, accessToken);
+				setReblogged(false);
+				setReblogsCount((c) => c - 1);
+			} else {
+				await reblogStatus(instanceUrl, actual.url, accessToken);
+				setReblogged(true);
+				setReblogsCount((c) => c + 1);
+			}
+		} catch {
+			// silently ignore — user can retry
+		} finally {
+			setReblogging(false);
+		}
+	};
+
+	const handleFavourite = async () => {
+		if (favouriting || !actual.url) return;
+		setFavouring(true);
+		try {
+			if (favourited) {
+				await unfavouriteStatus(instanceUrl, actual.url, accessToken);
+				setFavourited(false);
+				setFavouritesCount((c) => c - 1);
+			} else {
+				await favouriteStatus(instanceUrl, actual.url, accessToken);
+				setFavourited(true);
+				setFavouritesCount((c) => c + 1);
+			}
+		} catch {
+			// silently ignore — user can retry
+		} finally {
+			setFavouring(false);
+		}
+	};
 
 	return (
 		<article className="border-b border-gray-200 dark:border-gray-700 p-4">
@@ -228,24 +291,28 @@ export function PostCard({ status, onSubscribe, isSubscribed }: PostCardProps) {
 						<FontAwesomeIcon icon={faComment} />
 						{actual.repliesCount}
 					</span>
-					<a
-						href={actual.url ?? "#"}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="flex items-center gap-1 hover:text-green-500 transition-colors"
+					<button
+						type="button"
+						onClick={handleReblog}
+						disabled={reblogging}
+						className={`flex items-center gap-1 transition-colors disabled:opacity-50 ${
+							reblogged ? "text-green-500" : "hover:text-green-500"
+						}`}
 					>
 						<FontAwesomeIcon icon={faRetweet} />
-						{actual.reblogsCount}
-					</a>
-					<a
-						href={actual.url ?? "#"}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="flex items-center gap-1 hover:text-red-500 transition-colors"
+						{reblogsCount}
+					</button>
+					<button
+						type="button"
+						onClick={handleFavourite}
+						disabled={favouriting}
+						className={`flex items-center gap-1 transition-colors disabled:opacity-50 ${
+							favourited ? "text-red-500" : "hover:text-red-500"
+						}`}
 					>
 						<FontAwesomeIcon icon={faHeart} />
-						{actual.favouritesCount}
-					</a>
+						{favouritesCount}
+					</button>
 					<a
 						href={actual.url ?? "#"}
 						target="_blank"

@@ -29,6 +29,8 @@ interface PostListProps {
 	onRefresh: () => void;
 	onSubscribe: (handle: string) => void;
 	isSubscribed: (handle: string) => boolean;
+	instanceUrl: string;
+	accessToken: string;
 	onMount?: () => void;
 }
 
@@ -40,6 +42,8 @@ export function PostList({
 	onRefresh,
 	onSubscribe,
 	isSubscribed,
+	instanceUrl,
+	accessToken,
 	onMount,
 }: PostListProps) {
 	useInfiniteScroll(onLoadMore);
@@ -69,6 +73,8 @@ export function PostList({
 				<PostCardErrorBoundary key={status.id}>
 					<PostCard
 						status={status}
+						instanceUrl={instanceUrl}
+						accessToken={accessToken}
 						onSubscribe={onSubscribe}
 						isSubscribed={isSubscribed}
 					/>

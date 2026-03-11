@@ -131,6 +131,7 @@ export default function App() {
 				<div className={activeTab !== "subscribed" ? "hidden" : ""}>
 					<SubscribedPage
 						handles={handles}
+						instanceUrl={auth.instanceUrl}
 						accessToken={auth.accessToken}
 						onHandlesChange={handleHandlesChange}
 						onSubscribe={handleSubscribe}
