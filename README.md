@@ -1,73 +1,68 @@
-# React + TypeScript + Vite
+# Subee
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A Mastodon client focused on following specific accounts across the Fediverse.
 
-Currently, two official plugins are available:
+**Live app:** https://lens0021.github.io/subee/
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
 
-## React Compiler
+- **Home tab** — your Mastodon home timeline with infinite scroll
+- **Subscribed tab** — a merged, chronological feed of accounts you have manually subscribed to, including their reposts
+- Subscribe/unsubscribe from any post in either tab
+- Export and import your subscription list via clipboard
+- Installable as a PWA (Add to Home Screen)
+- Dark mode support
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## How to use
 
-## Expanding the ESLint configuration
+### Logging in
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+1. Open the app and enter your Mastodon instance URL (e.g. `mastodon.social`)
+2. You will be redirected to your instance to authorize the app
+3. After authorizing, you are returned to the app and your home timeline loads
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Subscribing to accounts
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+The Subscribed tab is **populated manually**, one account at a time:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+1. Go to the **Home** tab
+2. Find a post from an account you want to follow
+3. Click the **+ Subscribe** button on that post — it turns blue when active
+4. Switch to the **Subscribed** tab to see their posts
+
+Subscribed accounts are stored locally in your browser (IndexedDB). They persist across sessions but are not synced to your Mastodon account.
+
+### Exporting and importing subscriptions
+
+In the **Subscribed** tab, use the toolbar at the top:
+
+- **Copy subscriptions** — copies all handles to the clipboard, one per line (`@user@instance.social`)
+- **Paste & import** — reads handles from the clipboard (or lets you type/edit them) and replaces the current list
+
+Handle format: `@username@instance.social`
+
+## Development
+
+```sh
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Other commands:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+npm run build       # production build → docs/
+npm test            # unit tests (Vitest)
+npm run test:e2e    # end-to-end tests (Playwright)
+npm run lint        # Biome lint + format check
 ```
+
+## Tech stack
+
+- React 18 + TypeScript + Vite
+- Tailwind CSS v4
+- Mastodon REST API (direct fetch, OAuth 2.0)
+- localforage (IndexedDB) for subscription storage
+- Playwright for e2e tests, Vitest for unit tests
+- Biome for linting/formatting, Lefthook for git hooks
+- GitHub Pages for deployment
