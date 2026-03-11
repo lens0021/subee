@@ -1,16 +1,13 @@
 import { useEffect, useRef } from "react";
-import { ExportImport } from "../components/ExportImport";
 import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
 import { useSubscribedFeed } from "../hooks/useSubscribedFeed";
 import type { FeedProgress } from "../hooks/useSubscribedFeed";
-import { saveSubscriptions } from "../store/subscriptions";
 
 interface SubscribedPageProps {
 	handles: Set<string>;
 	instanceUrl: string;
 	accessToken: string;
-	onHandlesChange: (handles: Set<string>) => void;
 	onSubscribe: (handle: string) => void;
 	isSubscribed: (handle: string) => boolean;
 	initialScrollY: number;
@@ -20,7 +17,6 @@ export function SubscribedPage({
 	handles,
 	instanceUrl,
 	accessToken,
-	onHandlesChange,
 	onSubscribe,
 	isSubscribed,
 	initialScrollY,
@@ -47,11 +43,6 @@ export function SubscribedPage({
 		}
 	}, [loading, posts.length, initialScrollY]);
 
-	const handleImport = async (newHandles: Set<string>) => {
-		await saveSubscriptions(newHandles);
-		onHandlesChange(newHandles);
-	};
-
 	if (handles.size === 0) {
 		return (
 			<div className="p-8 text-center text-gray-400">
@@ -59,9 +50,6 @@ export function SubscribedPage({
 				<p className="text-sm">
 					Click "+ Subscribe" on any post to add accounts here.
 				</p>
-				<div className="mt-4">
-					<ExportImport handles={handles} onImport={handleImport} />
-				</div>
 			</div>
 		);
 	}
@@ -69,9 +57,6 @@ export function SubscribedPage({
 	return (
 		<>
 			<FloatingRefreshButton onRefresh={refresh} />
-			<div className="sticky top-[52px] z-30 bg-white dark:bg-gray-900">
-				<ExportImport handles={handles} onImport={handleImport} />
-			</div>
 			<PostList
 				posts={posts}
 				loading={loading}

@@ -1,13 +1,21 @@
-import { faSignOutAlt } from "@fortawesome/free-solid-svg-icons";
+import {
+	faFileImport,
+	faSignOutAlt,
+	faShareFromSquare,
+} from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { debounce } from "lodash";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { useSubscriptions } from "./hooks/useSubscriptions";
 import { PublicPage } from "./pages/PublicPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SubscribedPage } from "./pages/SubscribedPage";
-import { saveSubscriptions } from "./store/subscriptions";
+import {
+	exportHandles,
+	importHandles,
+	saveSubscriptions,
+} from "./store/subscriptions";
 
 type Tab = "public" | "subscribed";
 
@@ -27,6 +35,10 @@ function saveScroll(tab: Tab, y: number) {
 export default function App() {
 	const { auth, status, error: authError, login, logout } = useAuth();
 	const [activeTab, setActiveTab] = useState<Tab>("public");
+	const activeTabRef = useRef<Tab>("public");
+	const [showImport, setShowImport] = useState(false);
+	const [importText, setImportText] = useState("");
+	const [copied, setCopied] = useState(false);
 	const {
 		handles,
 		loading: subsLoading,
@@ -35,21 +47,47 @@ export default function App() {
 		isSubscribed,
 	} = useSubscriptions();
 
-	// Prevent browser back button from closing the PWA.
-	// Push a sentinel state on mount, then re-push it on every popstate.
+	// Keep a ref so the popstate closure always sees the current tab
 	useEffect(() => {
-		window.history.pushState({ subee: true }, "");
-		const onPopState = () => window.history.pushState({ subee: true }, "");
+		activeTabRef.current = activeTab;
+	}, [activeTab]);
+
+	// Tab-aware history navigation:
+	// - replaceState on mount so there's a named entry to return to
+	// - pushState on each switchTab so back navigates between tabs
+	// - popstate: if state has a known tab, switch to it;
+	//   if not (external history), scroll to top or let the app exit
+	useEffect(() => {
+		history.scrollRestoration = "manual";
+		window.history.replaceState({ tab: "public" }, "");
+
+		const onPopState = (e: PopStateEvent) => {
+			const tab = (e.state as { tab?: Tab } | null)?.tab;
+			if (tab === "public" || tab === "subscribed") {
+				saveScroll(activeTabRef.current, window.scrollY);
+				activeTabRef.current = tab;
+				setActiveTab(tab);
+			} else {
+				// External history: scroll to top if scrolled, otherwise let exit
+				if (window.scrollY > 0) {
+					window.scrollTo({ top: 0, behavior: "smooth" });
+					window.history.pushState({ tab: activeTabRef.current }, "");
+				}
+				// else: allow the browser to leave the app
+			}
+		};
+
 		window.addEventListener("popstate", onPopState);
 		return () => window.removeEventListener("popstate", onPopState);
 	}, []);
 
 	const switchTab = (tab: Tab) => {
 		saveScroll(activeTab, window.scrollY);
+		window.history.pushState({ tab }, "");
 		setActiveTab(tab);
 	};
 
-	// Restore saved scroll when switching tabs
+	// Restore saved scroll after tab switch
 	useEffect(() => {
 		window.scrollTo(0, readScroll(activeTab));
 	}, [activeTab]);
@@ -74,6 +112,20 @@ export default function App() {
 
 	const handleHandlesChange = async (newHandles: Set<string>) => {
 		await saveSubscriptions(newHandles);
+		window.location.reload();
+	};
+
+	const handleCopy = async () => {
+		await navigator.clipboard.writeText(exportHandles(handles));
+		setCopied(true);
+		setTimeout(() => setCopied(false), 2000);
+	};
+
+	const handleImportConfirm = async () => {
+		const newHandles = importHandles(importText);
+		await saveSubscriptions(newHandles);
+		setShowImport(false);
+		setImportText("");
 		window.location.reload();
 	};
 
@@ -135,8 +187,33 @@ export default function App() {
 								)}
 							</button>
 						</nav>
-						<div className="flex items-center gap-1 px-2 flex-shrink-0">
-							<span className="text-xs text-gray-400">{instanceHostname}</span>
+						<div className="flex items-center px-2 flex-shrink-0">
+							{activeTab === "subscribed" && (
+								<>
+									<button
+										type="button"
+										onClick={handleCopy}
+										title="Copy subscriptions"
+										className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+									>
+										<FontAwesomeIcon
+											icon={faShareFromSquare}
+											className={copied ? "text-green-500" : ""}
+										/>
+									</button>
+									<button
+										type="button"
+										onClick={() => setShowImport(true)}
+										title="Import subscriptions"
+										className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+									>
+										<FontAwesomeIcon icon={faFileImport} />
+									</button>
+								</>
+							)}
+							<span className="text-xs text-gray-400 px-1">
+								{instanceHostname}
+							</span>
 							<button
 								type="button"
 								onClick={logout}
@@ -149,6 +226,43 @@ export default function App() {
 					</div>
 				</div>
 			</header>
+
+			{/* Import overlay */}
+			{showImport && (
+				<div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center sm:items-center">
+					<div className="bg-white dark:bg-gray-800 w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-4 shadow-xl">
+						<h2 className="font-semibold mb-3">Import subscriptions</h2>
+						<textarea
+							value={importText}
+							onChange={(e) => setImportText(e.target.value)}
+							className="w-full text-sm border rounded p-2 dark:bg-gray-700 dark:border-gray-600 font-mono"
+							rows={6}
+							placeholder="@user@instance.social (one per line)"
+							// biome-ignore lint/a11y/noAutofocus: intentional focus for overlay
+							autoFocus
+						/>
+						<div className="flex gap-2 mt-3 justify-end">
+							<button
+								type="button"
+								onClick={() => {
+									setShowImport(false);
+									setImportText("");
+								}}
+								className="px-4 py-2 text-sm rounded border border-gray-300 dark:border-gray-600"
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								onClick={handleImportConfirm}
+								className="px-4 py-2 text-sm rounded bg-blue-500 text-white hover:bg-blue-600"
+							>
+								Import
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
 
 			{/* Content */}
 			<main className="max-w-2xl mx-auto">
@@ -166,7 +280,6 @@ export default function App() {
 						handles={handles}
 						instanceUrl={auth.instanceUrl}
 						accessToken={auth.accessToken}
-						onHandlesChange={handleHandlesChange}
 						onSubscribe={handleSubscribe}
 						isSubscribed={isSubscribed}
 						initialScrollY={readScroll("subscribed")}
