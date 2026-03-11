@@ -230,7 +230,7 @@ export function PostCard({
 	};
 
 	return (
-		<article className="border-b border-gray-200 dark:border-gray-700 p-4">
+		<article className="border-b border-gray-200 dark:border-gray-700 p-4 overflow-x-hidden">
 			{/* Reblog indicator */}
 			{status.reblog && (
 				<div className="text-xs text-gray-400 mb-2 flex items-center gap-1">
@@ -271,7 +271,7 @@ export function PostCard({
 
 			{/* Post content */}
 			{showContent && (
-				<div className="mt-2 text-sm [&_a]:text-blue-500">
+				<div className="mt-2 text-sm [&_a]:text-blue-500 break-words">
 					{parse(actual.content ?? "")}
 				</div>
 			)}
