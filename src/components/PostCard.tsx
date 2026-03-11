@@ -208,7 +208,7 @@ export function PostCard({ status, onSubscribe, isSubscribed }: PostCardProps) {
 
 			{/* Post content */}
 			{showContent && (
-				<div className="mt-2 text-sm [&_a]:text-blue-500 [&_a]:underline">
+				<div className="mt-2 text-sm [&_a]:text-blue-500">
 					{parse(actual.content ?? "")}
 				</div>
 			)}

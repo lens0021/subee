@@ -6,13 +6,26 @@ function instanceBase(url: string): string {
 	return url.replace(/\/$/, "");
 }
 
+function camelize(obj: unknown): unknown {
+	if (Array.isArray(obj)) return obj.map(camelize);
+	if (obj !== null && typeof obj === "object") {
+		return Object.fromEntries(
+			Object.entries(obj as Record<string, unknown>).map(([k, v]) => [
+				k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase()),
+				camelize(v),
+			]),
+		);
+	}
+	return obj;
+}
+
 async function apiFetch<T>(url: string, accessToken?: string): Promise<T> {
 	const headers: HeadersInit = accessToken
 		? { Authorization: `Bearer ${accessToken}` }
 		: {};
 	const res = await fetch(url, { headers });
 	if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-	return res.json() as Promise<T>;
+	return camelize(await res.json()) as T;
 }
 
 // Parse "@user@instance.social" or "user@instance.social" into parts
