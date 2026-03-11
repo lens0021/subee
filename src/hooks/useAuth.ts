@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+	OAUTH_SCOPE_VERSION,
 	buildAuthorizationUrl,
 	exchangeCodeForToken,
 	registerApp,
@@ -39,7 +40,7 @@ export function useAuth() {
 			}
 			sessionStorage.removeItem("subee:pendingInstance");
 
-			const creds = getClientCredentials(pendingInstance);
+			const creds = getClientCredentials(pendingInstance, OAUTH_SCOPE_VERSION);
 			if (!creds) {
 				setError("OAuth callback received but client credentials are missing.");
 				setStatus("unauthenticated");
@@ -81,10 +82,10 @@ export function useAuth() {
 	const login = useCallback(async (instanceUrl: string) => {
 		setError(null);
 		try {
-			let creds = getClientCredentials(instanceUrl);
+			let creds = getClientCredentials(instanceUrl, OAUTH_SCOPE_VERSION);
 			if (!creds) {
 				creds = await registerApp(instanceUrl);
-				saveClientCredentials(instanceUrl, creds);
+				saveClientCredentials(instanceUrl, creds, OAUTH_SCOPE_VERSION);
 			}
 			sessionStorage.setItem("subee:pendingInstance", instanceUrl);
 			window.location.href = buildAuthorizationUrl(instanceUrl, creds.clientId);

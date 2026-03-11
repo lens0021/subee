@@ -64,7 +64,8 @@ export function LoginPage({ onLogin, error }: LoginPageProps) {
 				</form>
 
 				<p className="text-xs text-center text-gray-400 mt-6">
-					Only read access is requested. Your credentials are never stored here.
+					Read and write access is requested (for boosting and favouriting).
+					Your credentials are never stored here.
 				</p>
 			</div>
 		</div>

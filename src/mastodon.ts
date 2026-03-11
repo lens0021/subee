@@ -61,6 +61,19 @@ interface AppRegistration {
 	clientSecret: string;
 }
 
+export const OAUTH_SCOPES = [
+	"read",
+	"write:bookmarks",
+	"write:favourites",
+	"write:follows",
+	"write:media",
+	"write:mutes",
+	"write:statuses",
+].join(" ");
+
+// Bump this string whenever OAUTH_SCOPES changes to force re-registration.
+export const OAUTH_SCOPE_VERSION = "v2";
+
 export async function registerApp(
 	instanceUrl: string,
 ): Promise<AppRegistration> {
@@ -70,7 +83,7 @@ export async function registerApp(
 		body: JSON.stringify({
 			client_name: "subee",
 			redirect_uris: getRedirectUri(),
-			scopes: "read write",
+			scopes: OAUTH_SCOPES,
 			website: getRedirectUri(),
 		}),
 	});
@@ -87,7 +100,7 @@ export function buildAuthorizationUrl(
 	url.searchParams.set("client_id", clientId);
 	url.searchParams.set("redirect_uri", getRedirectUri());
 	url.searchParams.set("response_type", "code");
-	url.searchParams.set("scope", "read write");
+	url.searchParams.set("scope", OAUTH_SCOPES);
 	return url.toString();
 }
 
@@ -106,7 +119,7 @@ export async function exchangeCodeForToken(
 			redirect_uri: getRedirectUri(),
 			grant_type: "authorization_code",
 			code,
-			scope: "read write",
+			scope: OAUTH_SCOPES,
 		}),
 	});
 	if (!res.ok) throw new Error(`Failed to exchange token: ${await res.text()}`);

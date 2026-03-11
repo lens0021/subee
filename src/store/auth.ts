@@ -13,6 +13,7 @@ const KEYS = {
 	instanceUrl: "subee:instanceUrl",
 	clientId: (instance: string) => `subee:clientId:${instance}`,
 	clientSecret: (instance: string) => `subee:clientSecret:${instance}`,
+	scopeVersion: (instance: string) => `subee:scopeVersion:${instance}`,
 };
 
 export function getAuth(): AuthState | null {
@@ -34,7 +35,11 @@ export function clearAuth(): void {
 
 export function getClientCredentials(
 	instanceUrl: string,
+	scopeVersion: string,
 ): ClientCredentials | null {
+	if (localStorage.getItem(KEYS.scopeVersion(instanceUrl)) !== scopeVersion) {
+		return null;
+	}
 	const clientId = localStorage.getItem(KEYS.clientId(instanceUrl));
 	const clientSecret = localStorage.getItem(KEYS.clientSecret(instanceUrl));
 	if (!clientId || !clientSecret) return null;
@@ -44,10 +49,12 @@ export function getClientCredentials(
 export function saveClientCredentials(
 	instanceUrl: string,
 	credentials: ClientCredentials,
+	scopeVersion: string,
 ): void {
 	localStorage.setItem(KEYS.clientId(instanceUrl), credentials.clientId);
 	localStorage.setItem(
 		KEYS.clientSecret(instanceUrl),
 		credentials.clientSecret,
 	);
+	localStorage.setItem(KEYS.scopeVersion(instanceUrl), scopeVersion);
 }
