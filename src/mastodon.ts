@@ -130,7 +130,7 @@ export async function exchangeCodeForToken(
 // --- Caches ---
 
 const ACCOUNT_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
-const STATUS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const STATUS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 interface CachedAccount {
 	id: string;
