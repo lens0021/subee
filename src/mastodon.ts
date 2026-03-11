@@ -105,6 +105,17 @@ export async function exchangeCodeForToken(
 	return data.access_token;
 }
 
+// --- Account ID cache ---
+
+const ACCOUNT_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+interface CachedAccount {
+	id: string;
+	cachedAt: number;
+}
+
+const accountCache = new Map<string, CachedAccount>();
+
 // --- Timeline / Account API ---
 
 export async function fetchHomeTimeline(
@@ -123,8 +134,15 @@ export async function lookupAccount(
 	username: string,
 	accessToken?: string,
 ): Promise<mastodon.v1.Account> {
+	const cacheKey = `${instanceUrl}:${username}`;
+	const cached = accountCache.get(cacheKey);
+	if (cached && Date.now() - cached.cachedAt < ACCOUNT_CACHE_TTL) {
+		return { id: cached.id } as mastodon.v1.Account;
+	}
 	const url = `${instanceBase(instanceUrl)}/api/v1/accounts/lookup?acct=${encodeURIComponent(username)}`;
-	return apiFetch<mastodon.v1.Account>(url, accessToken);
+	const account = await apiFetch<mastodon.v1.Account>(url, accessToken);
+	accountCache.set(cacheKey, { id: account.id, cachedAt: Date.now() });
+	return account;
 }
 
 export async function fetchAccountStatuses(
