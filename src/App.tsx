@@ -1,6 +1,6 @@
 import { faSignOutAlt } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FloatingRefreshButton } from "./components/FloatingRefreshButton";
 import { useAuth } from "./hooks/useAuth";
 import { useSubscriptions } from "./hooks/useSubscriptions";
@@ -14,6 +14,16 @@ type Tab = "public" | "subscribed";
 export default function App() {
 	const { auth, status, error: authError, login, logout } = useAuth();
 	const [activeTab, setActiveTab] = useState<Tab>("public");
+	const scrollPos = useRef<Record<Tab, number>>({ public: 0, subscribed: 0 });
+
+	const switchTab = (tab: Tab) => {
+		scrollPos.current[activeTab] = window.scrollY;
+		setActiveTab(tab);
+	};
+
+	useEffect(() => {
+		window.scrollTo(0, scrollPos.current[activeTab]);
+	}, [activeTab]);
 	const {
 		handles,
 		loading: subsLoading,
@@ -67,7 +77,7 @@ export default function App() {
 						<nav className="flex flex-1">
 							<button
 								type="button"
-								onClick={() => setActiveTab("public")}
+								onClick={() => switchTab("public")}
 								className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
 									activeTab === "public"
 										? "border-blue-500 text-blue-500"
@@ -78,7 +88,7 @@ export default function App() {
 							</button>
 							<button
 								type="button"
-								onClick={() => setActiveTab("subscribed")}
+								onClick={() => switchTab("subscribed")}
 								className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
 									activeTab === "subscribed"
 										? "border-blue-500 text-blue-500"
@@ -110,15 +120,15 @@ export default function App() {
 
 			{/* Content */}
 			<main className="max-w-2xl mx-auto">
-				{activeTab === "public" && (
+				<div className={activeTab !== "public" ? "hidden" : ""}>
 					<PublicPage
 						instanceUrl={auth.instanceUrl}
 						accessToken={auth.accessToken}
 						onSubscribe={handleSubscribe}
 						isSubscribed={isSubscribed}
 					/>
-				)}
-				{activeTab === "subscribed" && (
+				</div>
+				<div className={activeTab !== "subscribed" ? "hidden" : ""}>
 					<SubscribedPage
 						handles={handles}
 						accessToken={auth.accessToken}
@@ -126,7 +136,7 @@ export default function App() {
 						onSubscribe={handleSubscribe}
 						isSubscribed={isSubscribed}
 					/>
-				)}
+				</div>
 			</main>
 		</div>
 	);
