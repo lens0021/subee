@@ -39,6 +39,8 @@ export default function App() {
 	const [showImport, setShowImport] = useState(false);
 	const [importText, setImportText] = useState("");
 	const [copied, setCopied] = useState(false);
+	const [showMenu, setShowMenu] = useState(false);
+	const menuRef = useRef<HTMLDivElement>(null);
 	const {
 		handles,
 		loading: subsLoading,
@@ -121,6 +123,16 @@ export default function App() {
 		setTimeout(() => setCopied(false), 2000);
 	};
 
+	useEffect(() => {
+		const handler = (e: MouseEvent) => {
+			if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+				setShowMenu(false);
+			}
+		};
+		document.addEventListener("mousedown", handler);
+		return () => document.removeEventListener("mousedown", handler);
+	}, []);
+
 	const handleImportConfirm = async () => {
 		const newHandles = importHandles(importText);
 		await saveSubscriptions(newHandles);
@@ -189,27 +201,44 @@ export default function App() {
 						</nav>
 						<div className="flex items-center px-2 flex-shrink-0">
 							{activeTab === "subscribed" && (
-								<>
+								<div ref={menuRef} className="relative">
 									<button
 										type="button"
-										onClick={handleCopy}
-										title="Copy subscriptions"
+										onClick={() => setShowMenu((v) => !v)}
 										className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
 									>
-										<FontAwesomeIcon
-											icon={faShareFromSquare}
-											className={copied ? "text-green-500" : ""}
-										/>
+										⋯
 									</button>
-									<button
-										type="button"
-										onClick={() => setShowImport(true)}
-										title="Import subscriptions"
-										className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-									>
-										<FontAwesomeIcon icon={faFileImport} />
-									</button>
-								</>
+									{showMenu && (
+										<div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-50 min-w-max">
+											<button
+												type="button"
+												onClick={() => {
+													handleCopy();
+													setShowMenu(false);
+												}}
+												className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+											>
+												<FontAwesomeIcon
+													icon={faShareFromSquare}
+													className={copied ? "text-green-500" : ""}
+												/>
+												{copied ? "Copied!" : "Export"}
+											</button>
+											<button
+												type="button"
+												onClick={() => {
+													setShowImport(true);
+													setShowMenu(false);
+												}}
+												className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+											>
+												<FontAwesomeIcon icon={faFileImport} />
+												Import
+											</button>
+										</div>
+									)}
+								</div>
 							)}
 							<span className="text-xs text-gray-400 px-1">
 								{instanceHostname}
