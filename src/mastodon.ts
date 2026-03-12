@@ -147,7 +147,6 @@ interface CachedStatuses {
 const statusCache = new Map<string, CachedStatuses>();
 
 // localStatusId cache: post URL → local status ID on the user's instance
-const localStatusIdCache = new Map<string, string>();
 
 // --- Timeline / Account API ---
 
@@ -204,74 +203,46 @@ export async function fetchAccountStatuses(
 
 // --- Interactions ---
 
-// Resolve a post URL to a status ID on the user's own instance.
-// Uses /api/v1/search with resolve=true so cross-instance posts are fetched.
-async function resolveStatus(
-	instanceUrl: string,
-	postUrl: string,
-	accessToken: string,
-): Promise<string> {
-	const cached = localStatusIdCache.get(postUrl);
-	if (cached) return cached;
-	const url = new URL(`${instanceBase(instanceUrl)}/api/v1/search`);
-	url.searchParams.set("q", postUrl);
-	url.searchParams.set("resolve", "true");
-	url.searchParams.set("type", "statuses");
-	url.searchParams.set("limit", "1");
-	const result = await apiFetch<{ statuses: mastodon.v1.Status[] }>(
-		url.toString(),
-		accessToken,
-	);
-	const id = result.statuses[0]?.id;
-	if (!id) throw new Error("Post not found on your instance");
-	localStatusIdCache.set(postUrl, id);
-	return id;
-}
-
 export async function reblogStatus(
 	instanceUrl: string,
-	postUrl: string,
+	statusId: string,
 	accessToken: string,
 ): Promise<void> {
-	const id = await resolveStatus(instanceUrl, postUrl, accessToken);
 	await apiPost(
-		`${instanceBase(instanceUrl)}/api/v1/statuses/${id}/reblog`,
+		`${instanceBase(instanceUrl)}/api/v1/statuses/${statusId}/reblog`,
 		accessToken,
 	);
 }
 
 export async function unreblogStatus(
 	instanceUrl: string,
-	postUrl: string,
+	statusId: string,
 	accessToken: string,
 ): Promise<void> {
-	const id = await resolveStatus(instanceUrl, postUrl, accessToken);
 	await apiPost(
-		`${instanceBase(instanceUrl)}/api/v1/statuses/${id}/unreblog`,
+		`${instanceBase(instanceUrl)}/api/v1/statuses/${statusId}/unreblog`,
 		accessToken,
 	);
 }
 
 export async function favouriteStatus(
 	instanceUrl: string,
-	postUrl: string,
+	statusId: string,
 	accessToken: string,
 ): Promise<void> {
-	const id = await resolveStatus(instanceUrl, postUrl, accessToken);
 	await apiPost(
-		`${instanceBase(instanceUrl)}/api/v1/statuses/${id}/favourite`,
+		`${instanceBase(instanceUrl)}/api/v1/statuses/${statusId}/favourite`,
 		accessToken,
 	);
 }
 
 export async function unfavouriteStatus(
 	instanceUrl: string,
-	postUrl: string,
+	statusId: string,
 	accessToken: string,
 ): Promise<void> {
-	const id = await resolveStatus(instanceUrl, postUrl, accessToken);
 	await apiPost(
-		`${instanceBase(instanceUrl)}/api/v1/statuses/${id}/unfavourite`,
+		`${instanceBase(instanceUrl)}/api/v1/statuses/${statusId}/unfavourite`,
 		accessToken,
 	);
 }

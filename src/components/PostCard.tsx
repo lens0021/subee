@@ -190,40 +190,42 @@ export function PostCard({
 	const absoluteTime = createdAt.toLocaleString();
 
 	const handleReblog = async () => {
-		if (reblogging || !actual.url) return;
+		if (reblogging || !actual.id) return;
 		setReblogging(true);
+		const wasReblogged = reblogged;
+		setReblogged(!wasReblogged);
+		setReblogsCount((c) => c + (wasReblogged ? -1 : 1));
 		try {
-			if (reblogged) {
-				await unreblogStatus(instanceUrl, actual.url, accessToken);
-				setReblogged(false);
-				setReblogsCount((c) => c - 1);
+			if (wasReblogged) {
+				await unreblogStatus(instanceUrl, actual.id, accessToken);
 			} else {
-				await reblogStatus(instanceUrl, actual.url, accessToken);
-				setReblogged(true);
-				setReblogsCount((c) => c + 1);
+				await reblogStatus(instanceUrl, actual.id, accessToken);
 			}
 		} catch {
-			// silently ignore — user can retry
+			// revert on failure
+			setReblogged(wasReblogged);
+			setReblogsCount((c) => c + (wasReblogged ? 1 : -1));
 		} finally {
 			setReblogging(false);
 		}
 	};
 
 	const handleFavourite = async () => {
-		if (favouriting || !actual.url) return;
+		if (favouriting || !actual.id) return;
 		setFavouring(true);
+		const wasFavourited = favourited;
+		setFavourited(!wasFavourited);
+		setFavouritesCount((c) => c + (wasFavourited ? -1 : 1));
 		try {
-			if (favourited) {
-				await unfavouriteStatus(instanceUrl, actual.url, accessToken);
-				setFavourited(false);
-				setFavouritesCount((c) => c - 1);
+			if (wasFavourited) {
+				await unfavouriteStatus(instanceUrl, actual.id, accessToken);
 			} else {
-				await favouriteStatus(instanceUrl, actual.url, accessToken);
-				setFavourited(true);
-				setFavouritesCount((c) => c + 1);
+				await favouriteStatus(instanceUrl, actual.id, accessToken);
 			}
 		} catch {
-			// silently ignore — user can retry
+			// revert on failure
+			setFavourited(wasFavourited);
+			setFavouritesCount((c) => c + (wasFavourited ? 1 : -1));
 		} finally {
 			setFavouring(false);
 		}
