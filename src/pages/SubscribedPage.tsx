@@ -25,7 +25,7 @@ export function SubscribedPage({
 	scrollContainerRef,
 }: SubscribedPageProps) {
 	const { posts, loading, error, progress, fetchMore, refresh } =
-		useSubscribedFeed(handles, accessToken);
+		useSubscribedFeed(handles, instanceUrl, accessToken);
 
 	useEffect(() => {
 		if (handles.size > 0) fetchMore();

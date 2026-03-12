@@ -147,7 +147,6 @@ interface CachedStatuses {
 const statusCache = new Map<string, CachedStatuses>();
 
 // localStatusId cache: post URL → local status ID on the user's instance
-
 // --- Timeline / Account API ---
 
 export async function fetchHomeTimeline(

@@ -38,7 +38,11 @@ async function concurrent(
 	);
 }
 
-export function useSubscribedFeed(handles: Set<string>, accessToken: string) {
+export function useSubscribedFeed(
+	handles: Set<string>,
+	instanceUrl: string,
+	accessToken: string,
+) {
 	const [posts, setPosts] = useState<mastodon.v1.Status[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -69,9 +73,16 @@ export function useSubscribedFeed(handles: Set<string>, accessToken: string) {
 
 		await concurrent(
 			handlesList.map((handle) => async () => {
-				const { username, instanceUrl } = parseHandle(handle);
+				const { username, instanceUrl: remoteInstanceUrl } =
+					parseHandle(handle);
+				// Look up the account on the user's own instance so that fetched
+				// statuses have local IDs and interactions work without extra resolution.
+				const acct =
+					remoteInstanceUrl === instanceUrl
+						? username
+						: `${username}@${new URL(remoteInstanceUrl).hostname}`;
 				try {
-					const account = await lookupAccount(instanceUrl, username);
+					const account = await lookupAccount(instanceUrl, acct, accessToken);
 					newCursors.set(handle, {
 						accountId: account.id,
 						instanceUrl,
@@ -92,7 +103,7 @@ export function useSubscribedFeed(handles: Set<string>, accessToken: string) {
 
 		cursorsRef.current = newCursors;
 		initializedRef.current = true;
-	}, [handles]);
+	}, [handles, instanceUrl, accessToken]);
 
 	const fetchMore = useCallback(async () => {
 		if (loadingRef.current) return;
@@ -117,6 +128,7 @@ export function useSubscribedFeed(handles: Set<string>, accessToken: string) {
 							cursor.instanceUrl,
 							cursor.accountId,
 							{ limit: PAGE_SIZE, maxId: cursor.maxId },
+							accessToken,
 						);
 						if (results.length < PAGE_SIZE) {
 							cursorsRef.current.set(cursor.handle, { ...cursor, done: true });
