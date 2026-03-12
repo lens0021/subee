@@ -54,6 +54,7 @@ function MediaAttachments({
 							<img
 								src={attachment.previewUrl ?? attachment.url ?? ""}
 								alt={attachment.description ?? ""}
+								loading="lazy"
 								className="rounded w-full object-cover max-h-64"
 							/>
 						</a>
@@ -89,6 +90,7 @@ function CardPreview({ card }: { card: mastodon.v1.PreviewCard | null }) {
 				<img
 					src={card.image}
 					alt={card.title ?? ""}
+					loading="lazy"
 					className="w-full object-cover max-h-40"
 				/>
 			)}
@@ -123,6 +125,7 @@ function AccountInfo({
 				<img
 					src={account.avatar}
 					alt={account.displayName}
+					loading="lazy"
 					className="w-10 h-10 rounded-full flex-shrink-0"
 				/>
 			</a>

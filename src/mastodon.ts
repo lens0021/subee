@@ -129,24 +129,32 @@ export async function exchangeCodeForToken(
 
 // --- Caches ---
 
-const ACCOUNT_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const ACCOUNT_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 const STATUS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
-interface CachedAccount {
-	id: string;
-	cachedAt: number;
+function lsGet<T>(key: string, ttl: number): T | null {
+	try {
+		const raw = localStorage.getItem(key);
+		if (!raw) return null;
+		const { v, t } = JSON.parse(raw) as { v: T; t: number };
+		if (Date.now() - t > ttl) {
+			localStorage.removeItem(key);
+			return null;
+		}
+		return v;
+	} catch {
+		return null;
+	}
 }
 
-const accountCache = new Map<string, CachedAccount>();
-
-interface CachedStatuses {
-	statuses: mastodon.v1.Status[];
-	cachedAt: number;
+function lsSet(key: string, value: unknown): void {
+	try {
+		localStorage.setItem(key, JSON.stringify({ v: value, t: Date.now() }));
+	} catch {
+		// Storage full or unavailable — silently skip
+	}
 }
 
-const statusCache = new Map<string, CachedStatuses>();
-
-// localStatusId cache: post URL → local status ID on the user's instance
 // --- Timeline / Account API ---
 
 export async function fetchHomeTimeline(
@@ -165,14 +173,12 @@ export async function lookupAccount(
 	username: string,
 	accessToken?: string,
 ): Promise<mastodon.v1.Account> {
-	const cacheKey = `${instanceUrl}:${username}`;
-	const cached = accountCache.get(cacheKey);
-	if (cached && Date.now() - cached.cachedAt < ACCOUNT_CACHE_TTL) {
-		return { id: cached.id } as mastodon.v1.Account;
-	}
+	const cacheKey = `subee:account:${instanceUrl}:${username}`;
+	const cached = lsGet<mastodon.v1.Account>(cacheKey, ACCOUNT_CACHE_TTL);
+	if (cached) return cached;
 	const url = `${instanceBase(instanceUrl)}/api/v1/accounts/lookup?acct=${encodeURIComponent(username)}`;
 	const account = await apiFetch<mastodon.v1.Account>(url, accessToken);
-	accountCache.set(cacheKey, { id: account.id, cachedAt: Date.now() });
+	lsSet(cacheKey, account);
 	return account;
 }
 
@@ -182,11 +188,9 @@ export async function fetchAccountStatuses(
 	params?: { maxId?: string; limit?: number },
 	accessToken?: string,
 ): Promise<mastodon.v1.Status[]> {
-	const cacheKey = `${instanceUrl}:${accountId}:${params?.maxId ?? ""}`;
-	const cached = statusCache.get(cacheKey);
-	if (cached && Date.now() - cached.cachedAt < STATUS_CACHE_TTL) {
-		return cached.statuses;
-	}
+	const cacheKey = `subee:statuses:${instanceUrl}:${accountId}:${params?.maxId ?? ""}`;
+	const cached = lsGet<mastodon.v1.Status[]>(cacheKey, STATUS_CACHE_TTL);
+	if (cached) return cached;
 	const url = new URL(
 		`${instanceBase(instanceUrl)}/api/v1/accounts/${accountId}/statuses`,
 	);
@@ -196,7 +200,7 @@ export async function fetchAccountStatuses(
 		url.toString(),
 		accessToken,
 	);
-	statusCache.set(cacheKey, { statuses, cachedAt: Date.now() });
+	lsSet(cacheKey, statuses);
 	return statuses;
 }
 
