@@ -110,6 +110,8 @@ export default function App() {
 	const switchTab = (tab: Tab) => {
 		window.history.pushState({ tab }, "");
 		setActiveTab(tab);
+		const ref = tab === "public" ? publicScrollRef : subscribedScrollRef;
+		requestAnimationFrame(() => ref.current?.focus({ preventScroll: true }));
 	};
 
 	const handleSubscribe = (handle: string) => {
@@ -300,7 +302,8 @@ export default function App() {
 			<main className="flex-1 overflow-hidden relative">
 				<div
 					ref={publicScrollRef}
-					className={`absolute inset-0 overflow-y-auto${activeTab !== "public" ? " invisible pointer-events-none" : ""}`}
+					tabIndex={0}
+					className={`absolute inset-0 overflow-y-auto transition-none outline-none${activeTab !== "public" ? " -translate-x-full" : ""}`}
 					aria-hidden={activeTab !== "public"}
 				>
 					<div className="max-w-2xl mx-auto">
@@ -316,7 +319,8 @@ export default function App() {
 				</div>
 				<div
 					ref={subscribedScrollRef}
-					className={`absolute inset-0 overflow-y-auto${activeTab !== "subscribed" ? " invisible pointer-events-none" : ""}`}
+					tabIndex={0}
+					className={`absolute inset-0 overflow-y-auto transition-none outline-none${activeTab !== "subscribed" ? " -translate-x-full" : ""}`}
 					aria-hidden={activeTab !== "subscribed"}
 				>
 					<div className="max-w-2xl mx-auto">
