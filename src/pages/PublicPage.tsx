@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { useEffect, useRef } from "react";
 import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
@@ -9,6 +10,7 @@ interface PublicPageProps {
 	onSubscribe: (handle: string) => void;
 	isSubscribed: (handle: string) => boolean;
 	initialScrollY: number;
+	scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
 export function PublicPage({
@@ -17,6 +19,7 @@ export function PublicPage({
 	onSubscribe,
 	isSubscribed,
 	initialScrollY,
+	scrollContainerRef,
 }: PublicPageProps) {
 	const { posts, loading, error, fetchMore, refresh } = usePublicTimeline(
 		instanceUrl,
@@ -37,13 +40,18 @@ export function PublicPage({
 			initialScrollY > 0
 		) {
 			restoredRef.current = true;
-			requestAnimationFrame(() => window.scrollTo(0, initialScrollY));
+			requestAnimationFrame(() =>
+				scrollContainerRef.current?.scrollTo(0, initialScrollY),
+			);
 		}
-	}, [loading, posts.length, initialScrollY]);
+	}, [loading, posts.length, initialScrollY, scrollContainerRef]);
 
 	return (
 		<>
-			<FloatingRefreshButton onRefresh={refresh} />
+			<FloatingRefreshButton
+				onRefresh={refresh}
+				scrollContainerRef={scrollContainerRef}
+			/>
 			<PostList
 				posts={posts}
 				loading={loading}
@@ -54,6 +62,7 @@ export function PublicPage({
 				isSubscribed={isSubscribed}
 				instanceUrl={instanceUrl}
 				accessToken={accessToken}
+				scrollContainerRef={scrollContainerRef}
 			/>
 		</>
 	);

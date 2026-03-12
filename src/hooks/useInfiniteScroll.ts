@@ -1,26 +1,34 @@
 import { debounce } from "lodash";
+import type { RefObject } from "react";
 import { useEffect, useMemo, useRef } from "react";
 
-export function useInfiniteScroll(onLoadMore: () => void, threshold = 300) {
+export function useInfiniteScroll(
+	onLoadMore: () => void,
+	scrollContainerRef: RefObject<HTMLElement | null>,
+	threshold = 300,
+) {
 	const onLoadMoreRef = useRef(onLoadMore);
 	onLoadMoreRef.current = onLoadMore;
 
 	const debouncedCheck = useMemo(
 		() =>
 			debounce(() => {
-				const scrolledToBottom =
-					window.innerHeight + window.scrollY >=
-					document.documentElement.scrollHeight - threshold;
-				if (scrolledToBottom) onLoadMoreRef.current();
+				const el = scrollContainerRef.current;
+				if (!el) return;
+				if (el.scrollTop + el.clientHeight >= el.scrollHeight - threshold) {
+					onLoadMoreRef.current();
+				}
 			}, 200),
-		[threshold],
+		[scrollContainerRef, threshold],
 	);
 
 	useEffect(() => {
-		window.addEventListener("scroll", debouncedCheck, { passive: true });
+		const el = scrollContainerRef.current;
+		if (!el) return;
+		el.addEventListener("scroll", debouncedCheck, { passive: true });
 		return () => {
-			window.removeEventListener("scroll", debouncedCheck);
+			el.removeEventListener("scroll", debouncedCheck);
 			debouncedCheck.cancel();
 		};
-	}, [debouncedCheck]);
+	}, [debouncedCheck, scrollContainerRef]);
 }

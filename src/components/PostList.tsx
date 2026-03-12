@@ -1,6 +1,6 @@
 import type { mastodon } from "masto";
 import { Component, useEffect } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import type { FeedProgress } from "../hooks/useSubscribedFeed";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { PostCard } from "./PostCard";
@@ -33,6 +33,7 @@ interface PostListProps {
 	isSubscribed: (handle: string) => boolean;
 	instanceUrl: string;
 	accessToken: string;
+	scrollContainerRef: RefObject<HTMLElement | null>;
 	onMount?: () => void;
 }
 
@@ -71,9 +72,10 @@ export function PostList({
 	isSubscribed,
 	instanceUrl,
 	accessToken,
+	scrollContainerRef,
 	onMount,
 }: PostListProps) {
-	useInfiniteScroll(onLoadMore);
+	useInfiniteScroll(onLoadMore, scrollContainerRef);
 
 	useEffect(() => {
 		onMount?.();

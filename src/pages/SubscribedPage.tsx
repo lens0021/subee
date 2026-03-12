@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { useEffect, useRef } from "react";
 import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
@@ -11,6 +12,7 @@ interface SubscribedPageProps {
 	onSubscribe: (handle: string) => void;
 	isSubscribed: (handle: string) => boolean;
 	initialScrollY: number;
+	scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
 export function SubscribedPage({
@@ -20,6 +22,7 @@ export function SubscribedPage({
 	onSubscribe,
 	isSubscribed,
 	initialScrollY,
+	scrollContainerRef,
 }: SubscribedPageProps) {
 	const { posts, loading, error, progress, fetchMore, refresh } =
 		useSubscribedFeed(handles, accessToken);
@@ -39,9 +42,11 @@ export function SubscribedPage({
 			initialScrollY > 0
 		) {
 			restoredRef.current = true;
-			requestAnimationFrame(() => window.scrollTo(0, initialScrollY));
+			requestAnimationFrame(() =>
+				scrollContainerRef.current?.scrollTo(0, initialScrollY),
+			);
 		}
-	}, [loading, posts.length, initialScrollY]);
+	}, [loading, posts.length, initialScrollY, scrollContainerRef]);
 
 	if (handles.size === 0) {
 		return (
@@ -56,7 +61,10 @@ export function SubscribedPage({
 
 	return (
 		<>
-			<FloatingRefreshButton onRefresh={refresh} />
+			<FloatingRefreshButton
+				onRefresh={refresh}
+				scrollContainerRef={scrollContainerRef}
+			/>
 			<PostList
 				posts={posts}
 				loading={loading}
@@ -68,6 +76,7 @@ export function SubscribedPage({
 				isSubscribed={isSubscribed}
 				instanceUrl={instanceUrl}
 				accessToken={accessToken}
+				scrollContainerRef={scrollContainerRef}
 			/>
 		</>
 	);

@@ -41,6 +41,8 @@ export default function App() {
 	const [copied, setCopied] = useState(false);
 	const [showMenu, setShowMenu] = useState(false);
 	const menuRef = useRef<HTMLDivElement>(null);
+	const publicScrollRef = useRef<HTMLDivElement>(null);
+	const subscribedScrollRef = useRef<HTMLDivElement>(null);
 	const {
 		handles,
 		loading: subsLoading,
@@ -54,11 +56,7 @@ export default function App() {
 		activeTabRef.current = activeTab;
 	}, [activeTab]);
 
-	// Tab-aware history navigation:
-	// - replaceState on mount so there's a named entry to return to
-	// - pushState on each switchTab so back navigates between tabs
-	// - popstate: if state has a known tab, switch to it;
-	//   if not (external history), scroll to top or let the app exit
+	// Tab-aware history navigation
 	useEffect(() => {
 		history.scrollRestoration = "manual";
 		window.history.replaceState({ tab: "public" }, "");
@@ -66,13 +64,16 @@ export default function App() {
 		const onPopState = (e: PopStateEvent) => {
 			const tab = (e.state as { tab?: Tab } | null)?.tab;
 			if (tab === "public" || tab === "subscribed") {
-				saveScroll(activeTabRef.current, window.scrollY);
 				activeTabRef.current = tab;
 				setActiveTab(tab);
 			} else {
 				// External history: scroll to top if scrolled, otherwise let exit
-				if (window.scrollY > 0) {
-					window.scrollTo({ top: 0, behavior: "smooth" });
+				const container =
+					activeTabRef.current === "public"
+						? publicScrollRef.current
+						: subscribedScrollRef.current;
+				if (container && container.scrollTop > 0) {
+					container.scrollTo({ top: 0, behavior: "smooth" });
 					window.history.pushState({ tab: activeTabRef.current }, "");
 				}
 				// else: allow the browser to leave the app
@@ -83,26 +84,33 @@ export default function App() {
 		return () => window.removeEventListener("popstate", onPopState);
 	}, []);
 
+	// Save scroll positions for page-reload restore
+	useEffect(() => {
+		const publicEl = publicScrollRef.current;
+		const subscribedEl = subscribedScrollRef.current;
+		if (!publicEl || !subscribedEl) return;
+		const savePublic = debounce(
+			() => saveScroll("public", publicEl.scrollTop),
+			300,
+		);
+		const saveSubscribed = debounce(
+			() => saveScroll("subscribed", subscribedEl.scrollTop),
+			300,
+		);
+		publicEl.addEventListener("scroll", savePublic, { passive: true });
+		subscribedEl.addEventListener("scroll", saveSubscribed, { passive: true });
+		return () => {
+			publicEl.removeEventListener("scroll", savePublic);
+			subscribedEl.removeEventListener("scroll", saveSubscribed);
+			savePublic.cancel();
+			saveSubscribed.cancel();
+		};
+	}, []);
+
 	const switchTab = (tab: Tab) => {
-		saveScroll(activeTab, window.scrollY);
 		window.history.pushState({ tab }, "");
 		setActiveTab(tab);
 	};
-
-	// Restore saved scroll after tab switch
-	useEffect(() => {
-		window.scrollTo(0, readScroll(activeTab));
-	}, [activeTab]);
-
-	// Periodically save scroll position for the active tab
-	useEffect(() => {
-		const save = debounce(() => saveScroll(activeTab, window.scrollY), 300);
-		window.addEventListener("scroll", save, { passive: true });
-		return () => {
-			window.removeEventListener("scroll", save);
-			save.cancel();
-		};
-	}, [activeTab]);
 
 	const handleSubscribe = (handle: string) => {
 		if (isSubscribed(handle)) {
@@ -110,11 +118,6 @@ export default function App() {
 		} else {
 			subscribe(handle);
 		}
-	};
-
-	const handleHandlesChange = async (newHandles: Set<string>) => {
-		await saveSubscriptions(newHandles);
-		window.location.reload();
 	};
 
 	const handleCopy = async () => {
@@ -164,9 +167,9 @@ export default function App() {
 	const instanceHostname = new URL(auth.instanceUrl).hostname;
 
 	return (
-		<div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+		<div className="h-dvh flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
 			{/* Header */}
-			<header className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 z-40">
+			<header className="flex-shrink-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 z-40">
 				<div className="max-w-2xl mx-auto">
 					<div className="flex items-center">
 						<h1 className="text-lg font-bold px-4 py-3 flex-shrink-0">subee</h1>
@@ -294,25 +297,39 @@ export default function App() {
 			)}
 
 			{/* Content */}
-			<main className="max-w-2xl mx-auto">
-				<div className={activeTab !== "public" ? "hidden" : ""}>
-					<PublicPage
-						instanceUrl={auth.instanceUrl}
-						accessToken={auth.accessToken}
-						onSubscribe={handleSubscribe}
-						isSubscribed={isSubscribed}
-						initialScrollY={readScroll("public")}
-					/>
+			<main className="flex-1 overflow-hidden relative">
+				<div
+					ref={publicScrollRef}
+					className={`absolute inset-0 overflow-y-auto${activeTab !== "public" ? " invisible pointer-events-none" : ""}`}
+					aria-hidden={activeTab !== "public"}
+				>
+					<div className="max-w-2xl mx-auto">
+						<PublicPage
+							instanceUrl={auth.instanceUrl}
+							accessToken={auth.accessToken}
+							onSubscribe={handleSubscribe}
+							isSubscribed={isSubscribed}
+							initialScrollY={readScroll("public")}
+							scrollContainerRef={publicScrollRef}
+						/>
+					</div>
 				</div>
-				<div className={activeTab !== "subscribed" ? "hidden" : ""}>
-					<SubscribedPage
-						handles={handles}
-						instanceUrl={auth.instanceUrl}
-						accessToken={auth.accessToken}
-						onSubscribe={handleSubscribe}
-						isSubscribed={isSubscribed}
-						initialScrollY={readScroll("subscribed")}
-					/>
+				<div
+					ref={subscribedScrollRef}
+					className={`absolute inset-0 overflow-y-auto${activeTab !== "subscribed" ? " invisible pointer-events-none" : ""}`}
+					aria-hidden={activeTab !== "subscribed"}
+				>
+					<div className="max-w-2xl mx-auto">
+						<SubscribedPage
+							handles={handles}
+							instanceUrl={auth.instanceUrl}
+							accessToken={auth.accessToken}
+							onSubscribe={handleSubscribe}
+							isSubscribed={isSubscribed}
+							initialScrollY={readScroll("subscribed")}
+							scrollContainerRef={subscribedScrollRef}
+						/>
+					</div>
 				</div>
 			</main>
 		</div>
