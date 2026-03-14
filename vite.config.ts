@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
 			},
 		},
 		build: {
-			outDir: env.BUILD_DIR || "docs",
+			outDir: env.BUILD_DIR || "dist",
 			sourcemap: mode === "development",
 		},
 		server: {

@@ -13,7 +13,6 @@ pids
 node_modules/
 
 # Build output
-docs/
 dist/
 
 # env files

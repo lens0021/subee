@@ -51,7 +51,7 @@ npm run dev
 Other commands:
 
 ```sh
-npm run build       # production build → docs/
+npm run build       # production build → dist/
 npm test            # unit tests (Vitest)
 npm run test:e2e    # end-to-end tests (Playwright)
 npm run lint        # Biome lint + format check
