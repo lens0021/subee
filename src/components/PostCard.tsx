@@ -10,6 +10,30 @@ import parse from "html-react-parser";
 import type { mastodon } from "masto";
 import { useState } from "react";
 import { LazyLoadImage } from "react-lazy-load-image-component";
+
+function renderWithEmoji(
+	text: string,
+	emojis: mastodon.v1.CustomEmoji[],
+): React.ReactNode {
+	if (!emojis.length) return text;
+	const parts = text.split(/:([a-zA-Z0-9_]+):/g);
+	const emojiMap = Object.fromEntries(emojis.map((e) => [e.shortcode, e]));
+	return parts.map((part, i) => {
+		if (i % 2 === 1 && emojiMap[part]) {
+			const e = emojiMap[part];
+			return (
+				<img
+					key={i}
+					src={e.staticUrl}
+					alt={`:${e.shortcode}:`}
+					title={`:${e.shortcode}:`}
+					className="emoji"
+				/>
+			);
+		}
+		return part;
+	});
+}
 import {
 	favouriteStatus,
 	formatHandle,
@@ -142,7 +166,7 @@ function AccountInfo({
 					rel="noopener noreferrer"
 					className="font-semibold text-sm block truncate hover:underline"
 				>
-					{parse(account.displayName || account.acct)}
+					{renderWithEmoji(account.displayName || account.acct, account.emojis)}
 				</a>
 				<div className="text-xs text-gray-500 flex items-center gap-2">
 					<a
@@ -247,7 +271,11 @@ export function PostCard({
 				<div className="text-xs text-gray-400 mb-2 flex items-center gap-1">
 					<FontAwesomeIcon icon={faRetweet} className="text-green-500" />
 					<span>
-						{parse(status.account.displayName || status.account.acct)} boosted
+						{renderWithEmoji(
+							status.account.displayName || status.account.acct,
+							status.account.emojis,
+						)}{" "}
+						boosted
 					</span>
 				</div>
 			)}
