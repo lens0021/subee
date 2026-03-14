@@ -8,8 +8,9 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { formatDistanceToNow } from "date-fns";
 import parse from "html-react-parser";
 import type { mastodon } from "masto";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LazyLoadImage } from "react-lazy-load-image-component";
+import { type MisskeyReactions, fetchMisskeyReactions } from "../misskey";
 
 function renderWithEmoji(
 	text: string,
@@ -217,6 +218,17 @@ export function PostCard({
 	);
 	const [reblogging, setReblogging] = useState(false);
 	const [favouriting, setFavouring] = useState(false);
+	const [misskeyReactions, setMisskeyReactions] = useState<{
+		reactions: MisskeyReactions;
+		reactionEmojis: Record<string, string>;
+	} | null>(null);
+
+	useEffect(() => {
+		if (!actual.url) return;
+		fetchMisskeyReactions(actual.url)
+			.then(setMisskeyReactions)
+			.catch(() => {});
+	}, [actual.url]);
 
 	const createdAt = actual.createdAt ? new Date(actual.createdAt) : new Date();
 	const relativeTime = formatDistanceToNow(createdAt, { addSuffix: true });
@@ -322,6 +334,31 @@ export function PostCard({
 
 			{/* URL preview card */}
 			{showContent && actual.card && <CardPreview card={actual.card} />}
+
+			{/* Misskey reactions */}
+			{misskeyReactions && (
+				<div className="flex flex-wrap gap-1 mt-2">
+					{Object.entries(misskeyReactions.reactions).map(([emoji, count]) => {
+						const shortcode = emoji.replace(/^:|:$/g, "").replace(/@\.$/, "");
+						const imgUrl = misskeyReactions.reactionEmojis[shortcode];
+						return (
+							<span
+								key={emoji}
+								className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-xs"
+							>
+								{imgUrl ? (
+									<img src={imgUrl} alt={emoji} className="emoji" />
+								) : (
+									<span>{emoji}</span>
+								)}
+								<span className="text-gray-500 dark:text-gray-400">
+									{count}
+								</span>
+							</span>
+						);
+					})}
+				</div>
+			)}
 
 			{/* Footer */}
 			<div className="flex items-center justify-between mt-3 text-gray-400 text-xs">
