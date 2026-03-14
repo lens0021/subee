@@ -339,7 +339,7 @@ export function PostCard({
 			{misskeyReactions && (
 				<div className="flex flex-wrap gap-1 mt-2">
 					{Object.entries(misskeyReactions.reactions).map(([emoji, count]) => {
-						const shortcode = emoji.replace(/^:|:$/g, "").replace(/@\.$/, "");
+						const shortcode = emoji.replace(/^:|:$/g, "");
 						const imgUrl = misskeyReactions.reactionEmojis[shortcode];
 						return (
 							<span
