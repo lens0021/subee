@@ -2,6 +2,7 @@ import type { mastodon } from "masto";
 import type { ReactNode, RefObject } from "react";
 import { Component, useEffect } from "react";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
+import { formatHandle } from "../mastodon";
 import type { FeedProgress } from "../hooks/useSubscribedFeed";
 import { PostCard } from "./PostCard";
 
@@ -35,6 +36,7 @@ interface PostListProps {
 	accessToken: string;
 	scrollContainerRef: RefObject<HTMLElement | null>;
 	onMount?: () => void;
+	excludeSubscribed?: boolean;
 }
 
 function ProgressBar({ progress }: { progress: FeedProgress }) {
@@ -74,6 +76,7 @@ export function PostList({
 	accessToken,
 	scrollContainerRef,
 	onMount,
+	excludeSubscribed,
 }: PostListProps) {
 	useInfiniteScroll(onLoadMore, scrollContainerRef);
 
@@ -98,17 +101,25 @@ export function PostList({
 
 	return (
 		<div>
-			{posts.map((status) => (
-				<PostCardErrorBoundary key={status.id}>
-					<PostCard
-						status={status}
-						instanceUrl={instanceUrl}
-						accessToken={accessToken}
-						onSubscribe={onSubscribe}
-						isSubscribed={isSubscribed}
-					/>
-				</PostCardErrorBoundary>
-			))}
+			{posts.map((status) => {
+				const hidden =
+					excludeSubscribed &&
+					status.reblog === null &&
+					isSubscribed(formatHandle(status.account));
+				return (
+					<PostCardErrorBoundary key={status.id}>
+						<div className={hidden ? "hidden" : undefined}>
+							<PostCard
+								status={status}
+								instanceUrl={instanceUrl}
+								accessToken={accessToken}
+								onSubscribe={onSubscribe}
+								isSubscribed={isSubscribed}
+							/>
+						</div>
+					</PostCardErrorBoundary>
+				);
+			})}
 			{loading && progress ? (
 				<ProgressBar progress={progress} />
 			) : loading ? (

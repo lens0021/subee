@@ -3,7 +3,6 @@ import { useEffect, useRef } from "react";
 import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
 import { usePublicTimeline } from "../hooks/usePublicTimeline";
-import { formatHandle } from "../mastodon";
 
 interface PublicPageProps {
 	instanceUrl: string;
@@ -49,12 +48,6 @@ export function PublicPage({
 		}
 	}, [loading, posts.length, initialScrollY, scrollContainerRef]);
 
-	const visiblePosts = excludeSubscribed
-		? posts.filter(
-				(p) => !isSubscribed(formatHandle(p.account)) || p.reblog !== null,
-			)
-		: posts;
-
 	return (
 		<>
 			<FloatingRefreshButton
@@ -62,7 +55,8 @@ export function PublicPage({
 				scrollContainerRef={scrollContainerRef}
 			/>
 			<PostList
-				posts={visiblePosts}
+				posts={posts}
+				excludeSubscribed={excludeSubscribed}
 				loading={loading}
 				error={error}
 				onLoadMore={fetchMore}

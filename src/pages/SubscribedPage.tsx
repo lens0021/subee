@@ -3,7 +3,6 @@ import { useEffect, useRef } from "react";
 import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
 import { useSubscribedFeed } from "../hooks/useSubscribedFeed";
-import { formatHandle } from "../mastodon";
 
 interface SubscribedPageProps {
 	handles: Set<string>;
@@ -50,12 +49,6 @@ export function SubscribedPage({
 		}
 	}, [loading, posts.length, initialScrollY, scrollContainerRef]);
 
-	const visiblePosts = excludeSubscribed
-		? posts.filter(
-				(p) => !isSubscribed(formatHandle(p.account)) || p.reblog !== null,
-			)
-		: posts;
-
 	if (handles.size === 0) {
 		return (
 			<div className="p-8 text-center text-gray-400">
@@ -74,7 +67,8 @@ export function SubscribedPage({
 				scrollContainerRef={scrollContainerRef}
 			/>
 			<PostList
-				posts={visiblePosts}
+				posts={posts}
+				excludeSubscribed={excludeSubscribed}
 				loading={loading}
 				error={error}
 				progress={progress}
