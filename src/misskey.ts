@@ -24,9 +24,7 @@ async function isMisskey(hostname: string): Promise<boolean> {
 	}
 }
 
-export async function fetchMisskeyReactions(
-	statusUrl: string,
-): Promise<{
+export async function fetchMisskeyReactions(statusUrl: string): Promise<{
 	reactions: MisskeyReactions;
 	reactionEmojis: Record<string, string>;
 } | null> {
