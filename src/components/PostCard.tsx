@@ -12,6 +12,7 @@ import { useState } from "react";
 import { LazyLoadImage } from "react-lazy-load-image-component";
 import {
 	favouriteStatus,
+	formatHandle,
 	reblogStatus,
 	unfavouriteStatus,
 	unreblogStatus,
@@ -23,11 +24,6 @@ interface PostCardProps {
 	accessToken: string;
 	onSubscribe: (handle: string) => void;
 	isSubscribed: (handle: string) => boolean;
-}
-
-function formatHandle(account: mastodon.v1.Account): string {
-	const domain = account.url.match(/https?:\/\/([^/]+)/)?.[1] ?? "";
-	return `@${account.acct.includes("@") ? account.acct : `${account.acct}@${domain}`}`;
 }
 
 function MediaAttachments({

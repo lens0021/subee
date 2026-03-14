@@ -29,6 +29,9 @@ export default function App() {
 	const [activeTab, setActiveTab] = useState<Tab>("subscribed");
 	const activeTabRef = useRef<Tab>("subscribed");
 	const [showImport, setShowImport] = useState(false);
+	const [excludeSubscribed, setExcludeSubscribed] = useState(
+		() => localStorage.getItem("subee:excludeSubscribed") === "true",
+	);
 	const publicScrollRef = useRef<HTMLDivElement>(null);
 	const subscribedScrollRef = useRef<HTMLDivElement>(null);
 	const {
@@ -117,6 +120,11 @@ export default function App() {
 		window.location.reload();
 	};
 
+	const handleToggleExcludeSubscribed = (v: boolean) => {
+		setExcludeSubscribed(v);
+		localStorage.setItem("subee:excludeSubscribed", String(v));
+	};
+
 	if (status === "loading") {
 		return (
 			<div className="min-h-screen flex items-center justify-center text-gray-400">
@@ -148,6 +156,8 @@ export default function App() {
 				instanceHostname={instanceHostname}
 				onLogout={logout}
 				onImportClick={() => setShowImport(true)}
+				excludeSubscribed={excludeSubscribed}
+				onToggleExcludeSubscribed={handleToggleExcludeSubscribed}
 			/>
 
 			{showImport && (
@@ -174,6 +184,7 @@ export default function App() {
 							isSubscribed={isSubscribed}
 							initialScrollY={readScroll("subscribed")}
 							scrollContainerRef={subscribedScrollRef}
+							excludeSubscribed={excludeSubscribed}
 						/>
 					</div>
 				</div>
@@ -192,6 +203,7 @@ export default function App() {
 							isSubscribed={isSubscribed}
 							initialScrollY={readScroll("public")}
 							scrollContainerRef={publicScrollRef}
+							excludeSubscribed={excludeSubscribed}
 						/>
 					</div>
 				</div>

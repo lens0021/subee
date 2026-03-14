@@ -17,6 +17,8 @@ interface AppHeaderProps {
 	instanceHostname: string;
 	onLogout: () => void;
 	onImportClick: () => void;
+	excludeSubscribed: boolean;
+	onToggleExcludeSubscribed: (v: boolean) => void;
 }
 
 export function AppHeader({
@@ -26,6 +28,8 @@ export function AppHeader({
 	instanceHostname,
 	onLogout,
 	onImportClick,
+	excludeSubscribed,
+	onToggleExcludeSubscribed,
 }: AppHeaderProps) {
 	const [showMenu, setShowMenu] = useState(false);
 	const [copied, setCopied] = useState(false);
@@ -119,6 +123,16 @@ export function AppHeader({
 										<FontAwesomeIcon icon={faFileImport} />
 										Import
 									</button>
+									<label className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
+										<input
+											type="checkbox"
+											checked={excludeSubscribed}
+											onChange={(e) =>
+												onToggleExcludeSubscribed(e.target.checked)
+											}
+										/>
+										Exclude subscribed
+									</label>
 								</div>
 							)}
 						</div>

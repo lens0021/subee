@@ -37,6 +37,11 @@ async function apiPost<T>(url: string, accessToken: string): Promise<T> {
 	return camelize(await res.json()) as T;
 }
 
+export function formatHandle(account: { acct: string; url: string }): string {
+	const domain = account.url.match(/https?:\/\/([^/]+)/)?.[1] ?? "";
+	return `@${account.acct.includes("@") ? account.acct : `${account.acct}@${domain}`}`;
+}
+
 // Parse "@user@instance.social" or "user@instance.social" into parts
 export function parseHandle(handle: string): {
 	username: string;
