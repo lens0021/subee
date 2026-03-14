@@ -205,6 +205,9 @@ export default function App() {
 							</button>
 						</nav>
 						<div className="flex items-center px-2 flex-shrink-0">
+							<span className="text-xs text-gray-400 px-1">
+								{instanceHostname}
+							</span>
 							{activeTab === "subscribed" && (
 								<div ref={menuRef} className="relative">
 									<button
@@ -245,9 +248,6 @@ export default function App() {
 									)}
 								</div>
 							)}
-							<span className="text-xs text-gray-400 px-1">
-								{instanceHostname}
-							</span>
 							<button
 								type="button"
 								onClick={logout}
