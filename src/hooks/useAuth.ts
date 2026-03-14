@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-	OAUTH_SCOPE_VERSION,
 	buildAuthorizationUrl,
 	exchangeCodeForToken,
+	OAUTH_SCOPE_VERSION,
 	registerApp,
 } from "../mastodon";
 import {

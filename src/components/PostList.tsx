@@ -1,8 +1,8 @@
 import type { mastodon } from "masto";
-import { Component, useEffect } from "react";
 import type { ReactNode, RefObject } from "react";
-import type { FeedProgress } from "../hooks/useSubscribedFeed";
+import { Component, useEffect } from "react";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
+import type { FeedProgress } from "../hooks/useSubscribedFeed";
 import { PostCard } from "./PostCard";
 
 class PostCardErrorBoundary extends Component<

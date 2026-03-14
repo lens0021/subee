@@ -3,7 +3,6 @@ import { useEffect, useRef } from "react";
 import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
 import { useSubscribedFeed } from "../hooks/useSubscribedFeed";
-import type { FeedProgress } from "../hooks/useSubscribedFeed";
 
 interface SubscribedPageProps {
 	handles: Set<string>;
@@ -27,9 +26,9 @@ export function SubscribedPage({
 	const { posts, loading, error, progress, fetchMore, refresh } =
 		useSubscribedFeed(handles, instanceUrl, accessToken);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run only when handles.size changes
 	useEffect(() => {
 		if (handles.size > 0) fetchMore();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [handles.size]);
 
 	// Restore scroll once after the first batch of posts loads

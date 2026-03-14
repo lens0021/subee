@@ -31,7 +31,9 @@ function formatHandle(account: mastodon.v1.Account): string {
 
 function MediaAttachments({
 	attachments,
-}: { attachments: mastodon.v1.MediaAttachment[] }) {
+}: {
+	attachments: mastodon.v1.MediaAttachment[];
+}) {
 	if (attachments.length === 0) return null;
 
 	const images = attachments.filter(
@@ -62,6 +64,7 @@ function MediaAttachments({
 				}
 				if (attachment.type === "video" || attachment.type === "audio") {
 					return (
+						// biome-ignore lint/a11y/useMediaCaption: user-generated content, captions unavailable
 						<video
 							key={attachment.id}
 							src={attachment.url ?? ""}

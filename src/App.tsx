@@ -1,15 +1,15 @@
 import {
 	faFileImport,
-	faSignOutAlt,
 	faShareFromSquare,
+	faSignOutAlt,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { debounce } from "lodash";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { useSubscriptions } from "./hooks/useSubscriptions";
-import { PublicPage } from "./pages/PublicPage";
 import { LoginPage } from "./pages/LoginPage";
+import { PublicPage } from "./pages/PublicPage";
 import { SubscribedPage } from "./pages/SubscribedPage";
 import {
 	exportHandles,
@@ -302,6 +302,7 @@ export default function App() {
 			<main className="flex-1 overflow-hidden relative">
 				<div
 					ref={subscribedScrollRef}
+					// biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard focus
 					tabIndex={0}
 					className={`absolute inset-0 overflow-y-auto transition-none outline-none${activeTab !== "subscribed" ? " -translate-x-full" : ""}`}
 					aria-hidden={activeTab !== "subscribed"}
@@ -320,6 +321,7 @@ export default function App() {
 				</div>
 				<div
 					ref={publicScrollRef}
+					// biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard focus
 					tabIndex={0}
 					className={`absolute inset-0 overflow-y-auto transition-none outline-none${activeTab !== "public" ? " -translate-x-full" : ""}`}
 					aria-hidden={activeTab !== "public"}

@@ -162,7 +162,7 @@ export function useSubscribedFeed(
 			setLoading(false);
 			setProgress(null);
 		}
-	}, [initCursors, flush]);
+	}, [initCursors, flush, accessToken]);
 
 	const refresh = useCallback(async () => {
 		cursorsRef.current = new Map();
