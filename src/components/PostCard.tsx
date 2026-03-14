@@ -9,6 +9,7 @@ import { formatDistanceToNow } from "date-fns";
 import parse from "html-react-parser";
 import type { mastodon } from "masto";
 import { useState } from "react";
+import { LazyLoadImage } from "react-lazy-load-image-component";
 import {
 	favouriteStatus,
 	reblogStatus,
@@ -53,11 +54,13 @@ function MediaAttachments({
 							target="_blank"
 							rel="noopener noreferrer"
 						>
-							<img
+							<LazyLoadImage
 								src={attachment.previewUrl ?? attachment.url ?? ""}
 								alt={attachment.description ?? ""}
-								loading="lazy"
 								className="rounded w-full object-cover max-h-64"
+								placeholder={
+									<div className="rounded w-full h-48 animate-pulse bg-gray-200 dark:bg-gray-700" />
+								}
 							/>
 						</a>
 					);
@@ -90,11 +93,13 @@ function CardPreview({ card }: { card: mastodon.v1.PreviewCard | null }) {
 			className="block mt-2 border rounded overflow-hidden hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
 		>
 			{card.image && (
-				<img
+				<LazyLoadImage
 					src={card.image}
 					alt={card.title ?? ""}
-					loading="lazy"
 					className="w-full object-cover max-h-40"
+					placeholder={
+						<div className="w-full h-32 animate-pulse bg-gray-200 dark:bg-gray-700" />
+					}
 				/>
 			)}
 			<div className="p-2">
@@ -125,11 +130,13 @@ function AccountInfo({
 	return (
 		<div className="flex items-center gap-2 min-w-0">
 			<a href={account.url} target="_blank" rel="noopener noreferrer">
-				<img
+				<LazyLoadImage
 					src={account.avatar}
 					alt={account.displayName}
-					loading="lazy"
 					className="w-10 h-10 rounded-full flex-shrink-0"
+					placeholder={
+						<div className="w-10 h-10 rounded-full animate-pulse bg-gray-200 dark:bg-gray-700" />
+					}
 				/>
 			</a>
 			<div className="min-w-0 flex-1">

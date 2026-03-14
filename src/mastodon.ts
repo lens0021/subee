@@ -185,22 +185,28 @@ export async function lookupAccount(
 export async function fetchAccountStatuses(
 	instanceUrl: string,
 	accountId: string,
-	params?: { maxId?: string; limit?: number },
+	params?: { maxId?: string; sinceId?: string; limit?: number },
 	accessToken?: string,
 ): Promise<mastodon.v1.Status[]> {
-	const cacheKey = `subee:statuses:${instanceUrl}:${accountId}:${params?.maxId ?? ""}`;
-	const cached = lsGet<mastodon.v1.Status[]>(cacheKey, STATUS_CACHE_TTL);
-	if (cached) return cached;
+	// Skip cache for sinceId (refresh) fetches — results change over time
+	const cacheKey = params?.sinceId
+		? null
+		: `subee:statuses:${instanceUrl}:${accountId}:${params?.maxId ?? ""}`;
+	if (cacheKey) {
+		const cached = lsGet<mastodon.v1.Status[]>(cacheKey, STATUS_CACHE_TTL);
+		if (cached) return cached;
+	}
 	const url = new URL(
 		`${instanceBase(instanceUrl)}/api/v1/accounts/${accountId}/statuses`,
 	);
 	if (params?.maxId) url.searchParams.set("max_id", params.maxId);
+	if (params?.sinceId) url.searchParams.set("since_id", params.sinceId);
 	url.searchParams.set("limit", String(params?.limit ?? 20));
 	const statuses = await apiFetch<mastodon.v1.Status[]>(
 		url.toString(),
 		accessToken,
 	);
-	lsSet(cacheKey, statuses);
+	if (cacheKey) lsSet(cacheKey, statuses);
 	return statuses;
 }
 

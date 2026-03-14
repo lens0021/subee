@@ -12,6 +12,7 @@ interface AccountCursor {
 	instanceUrl: string;
 	handle: string;
 	maxId?: string;
+	sinceId?: string;
 	done: boolean;
 }
 
@@ -137,6 +138,8 @@ export function useSubscribedFeed(
 							cursorsRef.current.set(cursor.handle, {
 								...cursor,
 								maxId: results[results.length - 1].id,
+								// Track the newest post seen for subsequent refreshes
+								sinceId: cursor.sinceId ?? results[0].id,
 							});
 							pendingRef.current.push(...results);
 						}
@@ -165,14 +168,61 @@ export function useSubscribedFeed(
 	}, [initCursors, flush, accessToken]);
 
 	const refresh = useCallback(async () => {
-		cursorsRef.current = new Map();
-		initializedRef.current = false;
-		loadingRef.current = false;
-		pendingRef.current = [];
-		setPosts([]);
-		setProgress(null);
-		await fetchMore();
-	}, [fetchMore]);
+		if (loadingRef.current) return;
+		loadingRef.current = true;
+		setLoading(true);
+		setError(null);
+
+		if (!initializedRef.current) {
+			await initCursors();
+		}
+
+		try {
+			const cursors = [...cursorsRef.current.values()];
+			let completed = 0;
+
+			setProgress({ done: 0, total: cursors.length, phase: "loading" });
+
+			await concurrent(
+				cursors.map((cursor) => async () => {
+					try {
+						const results = await fetchAccountStatuses(
+							cursor.instanceUrl,
+							cursor.accountId,
+							{ sinceId: cursor.sinceId, limit: PAGE_SIZE },
+							accessToken,
+						);
+						if (results.length > 0) {
+							// Update sinceId to the newest post from this refresh
+							cursorsRef.current.set(cursor.handle, {
+								...cursor,
+								sinceId: results[0].id,
+							});
+							pendingRef.current.push(...results);
+						}
+					} catch {
+						// Skip failed accounts
+					}
+					completed++;
+					setProgress({
+						done: completed,
+						total: cursors.length,
+						phase: "loading",
+					});
+					if (completed % FLUSH_EVERY === 0) flush();
+				}),
+				CONCURRENCY,
+			);
+
+			flush();
+		} catch (e) {
+			setError(String(e));
+		} finally {
+			loadingRef.current = false;
+			setLoading(false);
+			setProgress(null);
+		}
+	}, [initCursors, flush, accessToken]);
 
 	return { posts, loading, error, progress, fetchMore, refresh };
 }
