@@ -31,6 +31,7 @@
 			"Bash(npm install:*)",
 			"Bash(npm run:*)",
 			"Bash(npx:*)",
+			"Bash(npx tsc:*)",
 			"Bash(pwd:*)",
 			"Bash(rm:*)",
 			"Bash(sed:*)",
