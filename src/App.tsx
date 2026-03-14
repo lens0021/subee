@@ -34,8 +34,8 @@ function saveScroll(tab: Tab, y: number) {
 
 export default function App() {
 	const { auth, status, error: authError, login, logout } = useAuth();
-	const [activeTab, setActiveTab] = useState<Tab>("public");
-	const activeTabRef = useRef<Tab>("public");
+	const [activeTab, setActiveTab] = useState<Tab>("subscribed");
+	const activeTabRef = useRef<Tab>("subscribed");
 	const [showImport, setShowImport] = useState(false);
 	const [importText, setImportText] = useState("");
 	const [copied, setCopied] = useState(false);
@@ -59,7 +59,7 @@ export default function App() {
 	// Tab-aware history navigation
 	useEffect(() => {
 		history.scrollRestoration = "manual";
-		window.history.replaceState({ tab: "public" }, "");
+		window.history.replaceState({ tab: "subscribed" }, "");
 
 		const onPopState = (e: PopStateEvent) => {
 			const tab = (e.state as { tab?: Tab } | null)?.tab;
@@ -178,17 +178,6 @@ export default function App() {
 						<nav className="flex flex-1">
 							<button
 								type="button"
-								onClick={() => switchTab("public")}
-								className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
-									activeTab === "public"
-										? "border-blue-500 text-blue-500"
-										: "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-								}`}
-							>
-								Home
-							</button>
-							<button
-								type="button"
 								onClick={() => switchTab("subscribed")}
 								className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
 									activeTab === "subscribed"
@@ -202,6 +191,17 @@ export default function App() {
 										{handles.size}
 									</span>
 								)}
+							</button>
+							<button
+								type="button"
+								onClick={() => switchTab("public")}
+								className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
+									activeTab === "public"
+										? "border-blue-500 text-blue-500"
+										: "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+								}`}
+							>
+								Home
 							</button>
 						</nav>
 						<div className="flex items-center px-2 flex-shrink-0">
@@ -301,23 +301,6 @@ export default function App() {
 			{/* Content */}
 			<main className="flex-1 overflow-hidden relative">
 				<div
-					ref={publicScrollRef}
-					tabIndex={0}
-					className={`absolute inset-0 overflow-y-auto transition-none outline-none${activeTab !== "public" ? " -translate-x-full" : ""}`}
-					aria-hidden={activeTab !== "public"}
-				>
-					<div className="max-w-2xl mx-auto">
-						<PublicPage
-							instanceUrl={auth.instanceUrl}
-							accessToken={auth.accessToken}
-							onSubscribe={handleSubscribe}
-							isSubscribed={isSubscribed}
-							initialScrollY={readScroll("public")}
-							scrollContainerRef={publicScrollRef}
-						/>
-					</div>
-				</div>
-				<div
 					ref={subscribedScrollRef}
 					tabIndex={0}
 					className={`absolute inset-0 overflow-y-auto transition-none outline-none${activeTab !== "subscribed" ? " -translate-x-full" : ""}`}
@@ -332,6 +315,23 @@ export default function App() {
 							isSubscribed={isSubscribed}
 							initialScrollY={readScroll("subscribed")}
 							scrollContainerRef={subscribedScrollRef}
+						/>
+					</div>
+				</div>
+				<div
+					ref={publicScrollRef}
+					tabIndex={0}
+					className={`absolute inset-0 overflow-y-auto transition-none outline-none${activeTab !== "public" ? " -translate-x-full" : ""}`}
+					aria-hidden={activeTab !== "public"}
+				>
+					<div className="max-w-2xl mx-auto">
+						<PublicPage
+							instanceUrl={auth.instanceUrl}
+							accessToken={auth.accessToken}
+							onSubscribe={handleSubscribe}
+							isSubscribed={isSubscribed}
+							initialScrollY={readScroll("public")}
+							scrollContainerRef={publicScrollRef}
 						/>
 					</div>
 				</div>
