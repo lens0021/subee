@@ -4,27 +4,5 @@
 		"enabled": true,
 		"clientKind": "git",
 		"useIgnoreFile": true
-	},
-	"files": {
-		"ignoreUnknown": false,
-		"ignore": ["tsconfig.node.json", "tsconfig.app.json"]
-	},
-	"formatter": {
-		"enabled": true,
-		"indentStyle": "tab"
-	},
-	"organizeImports": {
-		"enabled": true
-	},
-	"linter": {
-		"enabled": true,
-		"rules": {
-			"recommended": true
-		}
-	},
-	"javascript": {
-		"formatter": {
-			"quoteStyle": "double"
-		}
 	}
 }

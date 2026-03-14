@@ -1,11 +1,10 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig } from "vite";
 import pkg from "./package.json";
 
 export default defineConfig(({ mode }) => {
-	const env = loadEnv(mode, process.cwd(), "");
 	let base = "/";
 
 	if (mode === "production" && pkg.homepage) {
@@ -24,14 +23,6 @@ export default defineConfig(({ mode }) => {
 			alias: {
 				"@": fileURLToPath(new URL("./src", import.meta.url)),
 			},
-		},
-		build: {
-			outDir: env.BUILD_DIR || "dist",
-			sourcemap: mode === "development",
-		},
-		server: {
-			port: 3000,
-			open: true,
 		},
 		test: {
 			environment: "jsdom",
