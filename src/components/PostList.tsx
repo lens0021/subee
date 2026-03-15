@@ -100,7 +100,9 @@ export function PostList({
 	}
 
 	return (
-		<div>
+		<div
+			className={excludeSubscribed ? "[&_[data-subscribed]]:hidden" : undefined}
+		>
 			{error && (
 				<div className="px-4 py-2 text-center text-xs text-red-500 font-mono break-all">
 					{error} —{" "}
@@ -114,13 +116,11 @@ export function PostList({
 				</div>
 			)}
 			{posts.map((status) => {
-				const hidden =
-					excludeSubscribed &&
-					status.reblog === null &&
-					isSubscribed(formatHandle(status.account));
+				const subscribed =
+					status.reblog === null && isSubscribed(formatHandle(status.account));
 				return (
 					<PostCardErrorBoundary key={status.id}>
-						<div className={hidden ? "hidden" : undefined}>
+						<div data-subscribed={subscribed || undefined}>
 							<PostCard
 								status={status}
 								instanceUrl={instanceUrl}
