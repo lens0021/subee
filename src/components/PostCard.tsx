@@ -35,6 +35,19 @@ function renderWithEmoji(
 		return part;
 	});
 }
+
+function applyEmojisToHtml(
+	html: string,
+	emojis: mastodon.v1.CustomEmoji[],
+): string {
+	if (!emojis.length) return html;
+	const emojiMap = Object.fromEntries(emojis.map((e) => [e.shortcode, e]));
+	return html.replace(/:([a-zA-Z0-9_]+):/g, (match, shortcode) => {
+		const e = emojiMap[shortcode];
+		if (!e) return match;
+		return `<img src="${e.staticUrl}" alt=":${shortcode}:" title=":${shortcode}:" class="emoji">`;
+	});
+}
 import {
 	favouriteStatus,
 	formatHandle,
@@ -323,7 +336,7 @@ export function PostCard({
 			{/* Post content */}
 			{showContent && (
 				<div className="mt-2 text-sm [&_a]:text-blue-500 break-words">
-					{parse(actual.content ?? "")}
+					{parse(applyEmojisToHtml(actual.content ?? "", actual.emojis ?? []))}
 				</div>
 			)}
 
