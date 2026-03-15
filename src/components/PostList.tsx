@@ -84,7 +84,7 @@ export function PostList({
 		onMount?.();
 	}, [onMount]);
 
-	if (error) {
+	if (error && posts.length === 0) {
 		return (
 			<div className="p-8 text-center">
 				<p className="text-red-500 mb-3 text-sm font-mono break-all">{error}</p>
@@ -101,6 +101,18 @@ export function PostList({
 
 	return (
 		<div>
+			{error && (
+				<div className="px-4 py-2 text-center text-xs text-red-500 font-mono break-all">
+					{error} —{" "}
+					<button
+						type="button"
+						onClick={onRefresh}
+						className="underline hover:no-underline"
+					>
+						retry
+					</button>
+				</div>
+			)}
 			{posts.map((status) => {
 				const hidden =
 					excludeSubscribed &&
