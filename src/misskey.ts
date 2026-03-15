@@ -1,17 +1,15 @@
 import type { entities } from "misskey-js";
+import { lsGet, lsSet } from "./mastodon";
 
 export type MisskeyReactions = Record<string, number>;
 
-// Cache per hostname: true = is Misskey, false = not Misskey
-const misskeyCache = new Map<string, boolean>();
-
-// Cache per hostname: local emoji name → URL
-const localEmojiCache = new Map<string, Record<string, string>>();
+const EMOJI_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 async function fetchLocalEmojis(
 	hostname: string,
 ): Promise<Record<string, string>> {
-	const cached = localEmojiCache.get(hostname);
+	const cacheKey = `subee:misskey:emojis:${hostname}`;
+	const cached = lsGet<Record<string, string>>(cacheKey, EMOJI_CACHE_TTL);
 	if (cached) return cached;
 
 	try {
@@ -25,7 +23,7 @@ async function fetchLocalEmojis(
 			emojis: { name: string; url: string }[];
 		};
 		const map = Object.fromEntries(data.emojis.map((e) => [e.name, e.url]));
-		localEmojiCache.set(hostname, map);
+		lsSet(cacheKey, map);
 		return map;
 	} catch {
 		return {};
@@ -33,8 +31,9 @@ async function fetchLocalEmojis(
 }
 
 async function isMisskey(hostname: string): Promise<boolean> {
-	const cached = misskeyCache.get(hostname);
-	if (cached !== undefined) return cached;
+	const cacheKey = `subee:misskey:is:${hostname}`;
+	const raw = localStorage.getItem(cacheKey);
+	if (raw !== null) return raw === "true";
 
 	try {
 		const res = await fetch(`https://${hostname}/api/meta`, {
@@ -43,10 +42,10 @@ async function isMisskey(hostname: string): Promise<boolean> {
 			body: JSON.stringify({}),
 		});
 		const result = res.ok;
-		misskeyCache.set(hostname, result);
+		localStorage.setItem(cacheKey, String(result));
 		return result;
 	} catch {
-		misskeyCache.set(hostname, false);
+		localStorage.setItem(cacheKey, "false");
 		return false;
 	}
 }

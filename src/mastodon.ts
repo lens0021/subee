@@ -137,7 +137,7 @@ export async function exchangeCodeForToken(
 const ACCOUNT_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 const STATUS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
-function lsGet<T>(key: string, ttl: number): T | null {
+export function lsGet<T>(key: string, ttl: number): T | null {
 	try {
 		const raw = localStorage.getItem(key);
 		if (!raw) return null;
@@ -152,7 +152,7 @@ function lsGet<T>(key: string, ttl: number): T | null {
 	}
 }
 
-function lsSet(key: string, value: unknown): void {
+export function lsSet(key: string, value: unknown): void {
 	try {
 		localStorage.setItem(key, JSON.stringify({ v: value, t: Date.now() }));
 	} catch {
