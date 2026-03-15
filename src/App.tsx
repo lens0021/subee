@@ -7,7 +7,7 @@ import { useSubscriptions } from "./hooks/useSubscriptions";
 import { LoginPage } from "./pages/LoginPage";
 import { PublicPage } from "./pages/PublicPage";
 import { SubscribedPage } from "./pages/SubscribedPage";
-import { importHandles, saveSubscriptions } from "./store/subscriptions";
+import { importHandles } from "./store/subscriptions";
 
 type Tab = "public" | "subscribed";
 
@@ -40,6 +40,7 @@ export default function App() {
 		subscribe,
 		unsubscribe,
 		isSubscribed,
+		replaceAll,
 	} = useSubscriptions();
 
 	// Keep a ref so the popstate closure always sees the current tab
@@ -115,9 +116,8 @@ export default function App() {
 
 	const handleImportConfirm = async (text: string) => {
 		const newHandles = importHandles(text);
-		await saveSubscriptions(newHandles);
+		await replaceAll(newHandles);
 		setShowImport(false);
-		window.location.reload();
 	};
 
 	const handleToggleExcludeSubscribed = (v: boolean) => {

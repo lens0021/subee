@@ -3,6 +3,7 @@ import {
 	addSubscription,
 	getSubscriptions,
 	removeSubscription,
+	saveSubscriptions,
 } from "../store/subscriptions";
 
 export function useSubscriptions() {
@@ -34,5 +35,10 @@ export function useSubscriptions() {
 		[handles],
 	);
 
-	return { handles, loading, subscribe, unsubscribe, isSubscribed };
+	const replaceAll = useCallback(async (newHandles: Set<string>) => {
+		await saveSubscriptions(newHandles);
+		setHandles(new Set(newHandles));
+	}, []);
+
+	return { handles, loading, subscribe, unsubscribe, isSubscribed, replaceAll };
 }
