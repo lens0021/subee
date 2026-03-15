@@ -28,10 +28,10 @@ export function SubscribedPage({
 	const { posts, loading, error, progress, fetchMore, refresh } =
 		useSubscribedFeed(handles, instanceUrl, accessToken);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run only when handles.size changes
+	// biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run only on mount
 	useEffect(() => {
 		if (handles.size > 0) fetchMore();
-	}, [handles.size]);
+	}, []);
 
 	// Restore scroll once after the first batch of posts loads
 	const restoredRef = useRef(false);
