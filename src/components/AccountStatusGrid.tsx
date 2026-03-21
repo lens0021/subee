@@ -48,10 +48,10 @@ export function AccountStatusGrid({
 					{selected}
 					{selectedStatus && (
 						<span className="ml-2 text-gray-400">
-							{selectedStatus === "resolving" && "— 계정 확인 중"}
-							{selectedStatus === "loading" && "— 게시물 불러오는 중"}
-							{selectedStatus === "done" && "— 완료"}
-							{selectedStatus === "failed" && "— 실패"}
+							{selectedStatus === "resolving" && "— resolving"}
+							{selectedStatus === "loading" && "— loading"}
+							{selectedStatus === "done" && "— done"}
+							{selectedStatus === "failed" && "— failed"}
 						</span>
 					)}
 				</div>
@@ -59,23 +59,22 @@ export function AccountStatusGrid({
 			<div className="flex gap-3 text-xs text-gray-400">
 				{done > 0 && (
 					<span>
-						<span className="text-green-500">●</span> 완료 {done}
+						<span className="text-green-500">●</span> done {done}
 					</span>
 				)}
 				{loading > 0 && (
 					<span>
-						<span className="text-blue-400">●</span> 게시물 불러오는 중{" "}
-						{loading}
+						<span className="text-blue-400">●</span> loading {loading}
 					</span>
 				)}
 				{resolving > 0 && (
 					<span>
-						<span className="text-yellow-400">●</span> 계정 확인 중 {resolving}
+						<span className="text-yellow-400">●</span> resolving {resolving}
 					</span>
 				)}
 				{failed > 0 && (
 					<span>
-						<span className="text-red-500">●</span> 실패 {failed}
+						<span className="text-red-500">●</span> failed {failed}
 					</span>
 				)}
 			</div>

@@ -130,7 +130,7 @@ export function PostList({
 								className="flex items-center gap-3 px-4 py-2 text-xs text-blue-400 select-none"
 							>
 								<div className="flex-1 h-px bg-blue-300 dark:bg-blue-700" />
-								<span>새 게시물</span>
+								<span>New posts</span>
 								<div className="flex-1 h-px bg-blue-300 dark:bg-blue-700" />
 							</div>
 						)}
