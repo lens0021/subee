@@ -16,17 +16,38 @@
 2. **버퍼 (buffer)** — 폴링 완료 후 피드에 아직 반영되지 않은 게시물 임시 보관소. "N new" 버튼으로 표시됨 (대기 중 상태).
 3. **피드 반영 (flush)** — "N new" 클릭 시 버퍼를 피드에 표시하는 동작. 구분선과 함께 해당 위치로 스크롤.
 
-## UI 컴포넌트
+## 엔드유저 UI
 
-- **AppHeader** — 상단 헤더. 탭 전환(Subscribed / Home) + cog 버튼만 표시. cog 드롭다운에 인스턴스 hostname(상단), 메뉴 항목들, 로그아웃(하단 구분선 아래)이 있음. 로그아웃은 한 번 클릭 시 "Log out? / Yes / Cancel" 확인 UI로 전환됨.
-- **FloatingRefreshButton** — 스크롤 내려갔을 때 상단 중앙에 뜨는 버튼. 세 가지 상태:
-  - 회색 "Refresh" — 폴링 시작
-  - `● N/total` pill — 폴링 진행 중 (클릭 불가)
-  - 파란 "N new" — 피드 반영 대기 중
-- **AccountStatusGrid** — 각 계정의 로딩 상태를 컬러 dot으로 표시. accountStatuses가 비어있지 않으면 항상 표시. dot 클릭 시 handle과 상태(resolving/loading/done/failed) 표시.
-- **PostList** — 게시물 목록. 무한 스크롤(load more), 에러 시 Retry 버튼, 구분선(New posts divider) 포함.
-- **PostCard** — 개별 게시물 카드. Subscribe/Subscribed 버튼, boost/favourite 수, CW(content warning) 토글 포함.
-- **FloatingRefreshButton (PublicPage)** — Home 탭에서도 동일 컴포넌트 사용. onPoll 없이 onRefresh만 연결되어 있어 클릭 시 타임라인 재fetch.
-- **ImportOverlay** — 구독 목록 텍스트 일괄 import 모달.
-- **AddAccountOverlay** — 단일 handle 구독 추가 모달.
-- **LoginPage** — 미인증 시 표시. Mastodon 인스턴스 URL 입력 후 OAuth 로그인.
+### 화면 구성
+
+- **헤더** — 화면 상단 고정. 앱 이름(subee), 탭 전환 버튼, 설정 버튼(⚙).
+- **탭** — Subscribed(구독 피드)와 Home(인스턴스 홈 타임라인) 두 가지.
+- **피드** — 탭 아래 스크롤 영역. 게시물 카드 목록.
+- **계정 상태 표시** — 피드 상단에 계정별 컬러 dot. 초기 로딩 시 또는 실패 계정이 있을 때 표시. dot을 탭하면 해당 계정 handle과 상태 확인 가능.
+- **새로고침 버튼** — 스크롤을 내리면 화면 상단 중앙에 뜨는 플로팅 버튼. 상태에 따라 세 가지 모습으로 변함 (아래 참고).
+- **구분선** — 피드 반영 후 새 게시물과 기존 게시물 사이에 "New posts" 텍스트와 함께 표시되는 선.
+
+### 새로고침 버튼 상태
+
+| 모습 | 의미 | 탭 시 동작 |
+|------|------|-----------|
+| 회색 "Refresh · checked Xm ago" | 폴링 대기 중 | 폴링 시작 |
+| `● N/total` (회색 pill) | 폴링 진행 중 | 반응 없음 |
+| 파란 "N new" | 버퍼에 N개 대기 중 | 피드 반영 |
+
+### 설정 메뉴 (⚙)
+
+헤더 우측 톱니바퀴 버튼을 탭하면 열리는 드롭다운.
+
+- **인스턴스 hostname** — 현재 로그인된 인스턴스 표시 (비활성).
+- **Export subscriptions** — 구독 목록을 텍스트로 클립보드에 복사.
+- **Import subscriptions** — 텍스트로 구독 목록을 일괄 교체.
+- **Subscribe to account** — 단일 handle을 구독 목록에 추가.
+- **Exclude subscribed** — 체크 시 Subscribed 탭의 게시물에서 이미 구독한 계정 게시물을 Home 탭에서 숨김.
+- **Log out** — 탭 시 "Log out? / Yes / Cancel" 확인 후 로그아웃.
+
+### 게시물 카드
+
+- 계정 이름, 아바타, 게시 시간, 본문, 미디어, boost/favourite 수 표시.
+- **+ Subscribe / Subscribed** 버튼으로 해당 계정 구독 토글.
+- CW(content warning) 있는 게시물은 접힌 상태로 표시, "Show content"로 펼침.
