@@ -77,7 +77,7 @@ export function FloatingRefreshButton({
 			className="fixed top-16 left-1/2 -translate-x-1/2 bg-gray-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium hover:bg-gray-700 transition-colors z-30"
 		>
 			<FontAwesomeIcon icon={faArrowUp} />
-			Refresh{lastPollTime ? ` · ${relativeTime(lastPollTime)}` : ""}
+			Refresh{lastPollTime ? ` · checked ${relativeTime(lastPollTime)}` : ""}
 		</button>
 	);
 }
