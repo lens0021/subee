@@ -14,13 +14,15 @@ export function AccountStatusGrid({
 	statuses: Map<string, AccountLoadStatus>;
 }) {
 	const entries = [...statuses.entries()];
+	let resolving = 0;
+	let loading = 0;
 	let done = 0;
-	let inProgress = 0;
 	let failed = 0;
 	for (const [, s] of entries) {
-		if (s === "done") done++;
+		if (s === "resolving" || s === "idle") resolving++;
+		else if (s === "loading") loading++;
+		else if (s === "done") done++;
 		else if (s === "failed") failed++;
-		else inProgress++;
 	}
 
 	return (
@@ -40,9 +42,15 @@ export function AccountStatusGrid({
 						<span className="text-green-500">●</span> 완료 {done}
 					</span>
 				)}
-				{inProgress > 0 && (
+				{loading > 0 && (
 					<span>
-						<span className="text-blue-400">●</span> 진행 중 {inProgress}
+						<span className="text-blue-400">●</span> 게시물 불러오는 중{" "}
+						{loading}
+					</span>
+				)}
+				{resolving > 0 && (
+					<span>
+						<span className="text-yellow-400">●</span> 계정 확인 중 {resolving}
 					</span>
 				)}
 				{failed > 0 && (
