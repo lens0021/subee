@@ -3,6 +3,13 @@
 - **페이지 새로고침** — 브라우저 F5/Cmd+R. 전체 JS 상태 초기화.
 - **피드 새로고침** — 앱 내 Refresh 버튼 클릭. 폴링을 시작하는 동작.
 
+## 페이지 새로고침 흐름
+
+1. 커서 캐시(`subee:cursors:{instanceUrl}`, TTL 7일)와 게시물 캐시(`subee:posts:{instanceUrl}`, TTL 24h)를 localStorage에서 복원.
+2. 캐시가 유효하고 모든 구독 handle이 커서 캐시에 포함되면 → 즉시 피드 표시 (API 호출 없음).
+3. 캐시가 없거나 새 handle이 있으면 → 계정 resolve(`initCursors`) 후 초기 게시물 fetch(`fetchMore`).
+4. 페이지 새로고침 후 자동 폴링 없음 — 사용자가 직접 Refresh 버튼으로 폴링 시작.
+
 ## 피드 새로고침 흐름
 
 1. **폴링 (polling)** — Refresh 클릭 후 각 계정의 새 게시물을 API로 가져오는 작업. 진행 중에는 `N/total` pill 표시.
@@ -16,7 +23,7 @@
   - 회색 "Refresh" — 폴링 시작
   - `● N/total` pill — 폴링 진행 중 (클릭 불가)
   - 파란 "N new" — 피드 반영 대기 중
-- **AccountStatusGrid** — 각 계정의 로딩 상태를 컬러 dot으로 표시. 로딩 중이거나 실패 계정이 있거나 pinStatusGrid 설정 시 표시. dot 클릭 시 handle과 상태 표시.
+- **AccountStatusGrid** — 각 계정의 로딩 상태를 컬러 dot으로 표시. accountStatuses가 비어있지 않으면 항상 표시. dot 클릭 시 handle과 상태(resolving/loading/done/failed) 표시.
 - **PostList** — 게시물 목록. 무한 스크롤(load more), 에러 시 Retry 버튼, 구분선(New posts divider) 포함.
 - **PostCard** — 개별 게시물 카드. Subscribe/Subscribed 버튼, boost/favourite 수, CW(content warning) 토글 포함.
 - **FloatingRefreshButton (PublicPage)** — Home 탭에서도 동일 컴포넌트 사용. onPoll 없이 onRefresh만 연결되어 있어 클릭 시 타임라인 재fetch.
