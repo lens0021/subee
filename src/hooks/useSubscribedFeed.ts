@@ -22,6 +22,13 @@ export interface FeedProgress {
 	phase: "resolving" | "loading";
 }
 
+export type AccountLoadStatus =
+	| "idle"
+	| "resolving"
+	| "loading"
+	| "done"
+	| "failed";
+
 // Run tasks with a fixed concurrency limit.
 // Safe in single-threaded JS: the index increment is synchronous.
 async function concurrent(
@@ -48,6 +55,9 @@ export function useSubscribedFeed(
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [progress, setProgress] = useState<FeedProgress | null>(null);
+	const [accountStatuses, setAccountStatuses] = useState<
+		Map<string, AccountLoadStatus>
+	>(new Map());
 	const cursorsRef = useRef<Map<string, AccountCursor>>(new Map());
 	const initializedRef = useRef(false);
 	const loadingRef = useRef(false);
@@ -71,6 +81,9 @@ export function useSubscribedFeed(
 		let done = 0;
 
 		setProgress({ done: 0, total: handlesList.length, phase: "resolving" });
+		setAccountStatuses(
+			new Map(handlesList.map((h) => [h, "resolving" as AccountLoadStatus])),
+		);
 
 		await concurrent(
 			handlesList.map((handle) => async () => {
@@ -90,8 +103,9 @@ export function useSubscribedFeed(
 						handle,
 						done: false,
 					});
+					setAccountStatuses((prev) => new Map(prev).set(handle, "loading"));
 				} catch {
-					// Account unreachable — skip silently
+					setAccountStatuses((prev) => new Map(prev).set(handle, "failed"));
 				}
 				setProgress({
 					done: ++done,
@@ -143,8 +157,13 @@ export function useSubscribedFeed(
 							});
 							pendingRef.current.push(...results);
 						}
+						setAccountStatuses((prev) =>
+							new Map(prev).set(cursor.handle, "done"),
+						);
 					} catch {
-						// Skip failed accounts
+						setAccountStatuses((prev) =>
+							new Map(prev).set(cursor.handle, "failed"),
+						);
 					}
 					completed++;
 					setProgress({
@@ -175,6 +194,15 @@ export function useSubscribedFeed(
 
 		if (!initializedRef.current) {
 			await initCursors();
+		} else {
+			setAccountStatuses(
+				new Map(
+					[...cursorsRef.current.keys()].map((h) => [
+						h,
+						"loading" as AccountLoadStatus,
+					]),
+				),
+			);
 		}
 
 		try {
@@ -200,8 +228,13 @@ export function useSubscribedFeed(
 							});
 							pendingRef.current.push(...results);
 						}
+						setAccountStatuses((prev) =>
+							new Map(prev).set(cursor.handle, "done"),
+						);
 					} catch {
-						// Skip failed accounts
+						setAccountStatuses((prev) =>
+							new Map(prev).set(cursor.handle, "failed"),
+						);
 					}
 					completed++;
 					setProgress({
@@ -224,5 +257,13 @@ export function useSubscribedFeed(
 		}
 	}, [initCursors, flush, accessToken]);
 
-	return { posts, loading, error, progress, fetchMore, refresh };
+	return {
+		posts,
+		loading,
+		error,
+		progress,
+		fetchMore,
+		refresh,
+		accountStatuses,
+	};
 }

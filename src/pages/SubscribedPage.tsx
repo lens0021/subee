@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
 import { useEffect, useRef } from "react";
+import { AccountStatusGrid } from "../components/AccountStatusGrid";
 import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
 import { useSubscribedFeed } from "../hooks/useSubscribedFeed";
@@ -25,8 +26,18 @@ export function SubscribedPage({
 	scrollContainerRef,
 	excludeSubscribed,
 }: SubscribedPageProps) {
-	const { posts, loading, error, progress, fetchMore, refresh } =
-		useSubscribedFeed(handles, instanceUrl, accessToken);
+	const {
+		posts,
+		loading,
+		error,
+		progress,
+		fetchMore,
+		refresh,
+		accountStatuses,
+	} = useSubscribedFeed(handles, instanceUrl, accessToken);
+
+	const hasFailed = [...accountStatuses.values()].some((s) => s === "failed");
+	const showGrid = accountStatuses.size > 0 && (loading || hasFailed);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run only on mount
 	useEffect(() => {
@@ -66,12 +77,12 @@ export function SubscribedPage({
 				onRefresh={refresh}
 				scrollContainerRef={scrollContainerRef}
 			/>
+			{showGrid && <AccountStatusGrid statuses={accountStatuses} />}
 			<PostList
 				posts={posts}
 				excludeSubscribed={excludeSubscribed}
 				loading={loading}
 				error={error}
-				progress={progress}
 				onLoadMore={fetchMore}
 				onRefresh={refresh}
 				onSubscribe={onSubscribe}
