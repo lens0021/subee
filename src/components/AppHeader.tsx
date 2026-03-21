@@ -36,12 +36,14 @@ export function AppHeader({
 }: AppHeaderProps) {
 	const [showMenu, setShowMenu] = useState(false);
 	const [copied, setCopied] = useState(false);
+	const [confirmingLogout, setConfirmingLogout] = useState(false);
 	const menuRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		const handler = (e: MouseEvent) => {
 			if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
 				setShowMenu(false);
+				setConfirmingLogout(false);
 			}
 		};
 		document.addEventListener("mousedown", handler);
@@ -147,17 +149,38 @@ export function AppHeader({
 									Exclude subscribed
 								</label>
 								<div className="border-t border-gray-200 dark:border-gray-700">
-									<button
-										type="button"
-										onClick={() => {
-											onLogout();
-											setShowMenu(false);
-										}}
-										className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500"
-									>
-										<FontAwesomeIcon icon={faSignOutAlt} />
-										Log out
-									</button>
+									{confirmingLogout ? (
+										<div className="flex items-center gap-2 px-4 py-2 text-sm">
+											<span className="text-gray-500 flex-1">Log out?</span>
+											<button
+												type="button"
+												onClick={() => {
+													onLogout();
+													setShowMenu(false);
+													setConfirmingLogout(false);
+												}}
+												className="text-red-500 font-medium hover:underline"
+											>
+												Yes
+											</button>
+											<button
+												type="button"
+												onClick={() => setConfirmingLogout(false)}
+												className="text-gray-400 hover:underline"
+											>
+												Cancel
+											</button>
+										</div>
+									) : (
+										<button
+											type="button"
+											onClick={() => setConfirmingLogout(true)}
+											className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500"
+										>
+											<FontAwesomeIcon icon={faSignOutAlt} />
+											Log out
+										</button>
+									)}
 								</div>
 							</div>
 						)}

@@ -11,7 +11,7 @@
 
 ## UI 컴포넌트
 
-- **AppHeader** — 상단 헤더. 탭 전환(Subscribed / Home), 인스턴스 hostname, 설정 메뉴(cog), 로그아웃 버튼.
+- **AppHeader** — 상단 헤더. 탭 전환(Subscribed / Home) + cog 버튼만 표시. cog 드롭다운에 인스턴스 hostname(상단), 메뉴 항목들, 로그아웃(하단 구분선 아래)이 있음. 로그아웃은 한 번 클릭 시 "Log out? / Yes / Cancel" 확인 UI로 전환됨.
 - **FloatingRefreshButton** — 스크롤 내려갔을 때 상단 중앙에 뜨는 버튼. 세 가지 상태:
   - 회색 "Refresh" — 폴링 시작
   - `● N/total` pill — 폴링 진행 중 (클릭 불가)
