@@ -5,6 +5,8 @@ export type MisskeyReactions = Record<string, number>;
 
 const EMOJI_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+const fetchingEmojis = new Map<string, Promise<Record<string, string>>>();
+
 async function fetchLocalEmojis(
 	hostname: string,
 ): Promise<Record<string, string>> {
@@ -12,45 +14,67 @@ async function fetchLocalEmojis(
 	const cached = lsGet<Record<string, string>>(cacheKey, EMOJI_CACHE_TTL);
 	if (cached) return cached;
 
-	try {
-		const res = await fetch(`https://${hostname}/api/emojis`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({}),
-		});
-		if (!res.ok) {
-			lsSet(cacheKey, {});
+	const inflight = fetchingEmojis.get(hostname);
+	if (inflight) return inflight;
+
+	const promise = (async () => {
+		try {
+			const res = await fetch(`https://${hostname}/api/emojis`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({}),
+			});
+			if (!res.ok) {
+				lsSet(cacheKey, {});
+				return {};
+			}
+			const data = (await res.json()) as {
+				emojis: { name: string; url: string }[];
+			};
+			const map = Object.fromEntries(data.emojis.map((e) => [e.name, e.url]));
+			lsSet(cacheKey, map);
+			return map;
+		} catch {
 			return {};
+		} finally {
+			fetchingEmojis.delete(hostname);
 		}
-		const data = (await res.json()) as {
-			emojis: { name: string; url: string }[];
-		};
-		const map = Object.fromEntries(data.emojis.map((e) => [e.name, e.url]));
-		lsSet(cacheKey, map);
-		return map;
-	} catch {
-		return {};
-	}
+	})();
+
+	fetchingEmojis.set(hostname, promise);
+	return promise;
 }
+
+const checkingMisskey = new Map<string, Promise<boolean>>();
 
 async function isMisskey(hostname: string): Promise<boolean> {
 	const cacheKey = `subee:misskey:is:${hostname}`;
 	const raw = localStorage.getItem(cacheKey);
 	if (raw !== null) return raw === "true";
 
-	try {
-		const res = await fetch(`https://${hostname}/api/meta`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({}),
-		});
-		const result = res.ok;
-		localStorage.setItem(cacheKey, String(result));
-		return result;
-	} catch {
-		localStorage.setItem(cacheKey, "false");
-		return false;
-	}
+	const inflight = checkingMisskey.get(hostname);
+	if (inflight) return inflight;
+
+	const promise = (async () => {
+		try {
+			const res = await fetch(`https://${hostname}/api/meta`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({}),
+			});
+			const result = res.ok;
+			localStorage.setItem(cacheKey, String(result));
+			return result;
+		} catch {
+			localStorage.setItem(cacheKey, "false");
+			return false;
+		} finally {
+			checkingMisskey.delete(hostname);
+		}
+	})();
+
+	checkingMisskey.set(hostname, promise);
+	return promise;
 }
 
 export async function fetchMisskeyReactions(statusUrl: string): Promise<{
