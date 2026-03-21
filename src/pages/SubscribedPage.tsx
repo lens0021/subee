@@ -14,6 +14,7 @@ interface SubscribedPageProps {
 	initialScrollY: number;
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 	excludeSubscribed: boolean;
+	pinStatusGrid: boolean;
 }
 
 export function SubscribedPage({
@@ -25,6 +26,7 @@ export function SubscribedPage({
 	initialScrollY,
 	scrollContainerRef,
 	excludeSubscribed,
+	pinStatusGrid,
 }: SubscribedPageProps) {
 	const {
 		posts,
@@ -37,7 +39,8 @@ export function SubscribedPage({
 	} = useSubscribedFeed(handles, instanceUrl, accessToken);
 
 	const hasFailed = [...accountStatuses.values()].some((s) => s === "failed");
-	const showGrid = accountStatuses.size > 0 && (loading || hasFailed);
+	const showGrid =
+		accountStatuses.size > 0 && (loading || hasFailed || pinStatusGrid);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run only on mount
 	useEffect(() => {

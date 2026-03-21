@@ -19,6 +19,8 @@ interface AppHeaderProps {
 	onImportClick: () => void;
 	excludeSubscribed: boolean;
 	onToggleExcludeSubscribed: (v: boolean) => void;
+	pinStatusGrid: boolean;
+	onTogglePinStatusGrid: (v: boolean) => void;
 }
 
 export function AppHeader({
@@ -30,6 +32,8 @@ export function AppHeader({
 	onImportClick,
 	excludeSubscribed,
 	onToggleExcludeSubscribed,
+	pinStatusGrid,
+	onTogglePinStatusGrid,
 }: AppHeaderProps) {
 	const [showMenu, setShowMenu] = useState(false);
 	const [copied, setCopied] = useState(false);
@@ -132,6 +136,14 @@ export function AppHeader({
 											}
 										/>
 										Exclude subscribed
+									</label>
+									<label className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
+										<input
+											type="checkbox"
+											checked={pinStatusGrid}
+											onChange={(e) => onTogglePinStatusGrid(e.target.checked)}
+										/>
+										Show account status
 									</label>
 								</div>
 							)}

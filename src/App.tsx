@@ -32,6 +32,9 @@ export default function App() {
 	const [excludeSubscribed, setExcludeSubscribed] = useState(
 		() => localStorage.getItem("subee:excludeSubscribed") === "true",
 	);
+	const [pinStatusGrid, setPinStatusGrid] = useState(
+		() => localStorage.getItem("subee:pinStatusGrid") === "true",
+	);
 	const publicScrollRef = useRef<HTMLDivElement>(null);
 	const subscribedScrollRef = useRef<HTMLDivElement>(null);
 	const {
@@ -125,6 +128,11 @@ export default function App() {
 		localStorage.setItem("subee:excludeSubscribed", String(v));
 	};
 
+	const handleTogglePinStatusGrid = (v: boolean) => {
+		setPinStatusGrid(v);
+		localStorage.setItem("subee:pinStatusGrid", String(v));
+	};
+
 	if (status === "loading") {
 		return (
 			<div className="min-h-screen flex items-center justify-center text-gray-400">
@@ -158,6 +166,8 @@ export default function App() {
 				onImportClick={() => setShowImport(true)}
 				excludeSubscribed={excludeSubscribed}
 				onToggleExcludeSubscribed={handleToggleExcludeSubscribed}
+				pinStatusGrid={pinStatusGrid}
+				onTogglePinStatusGrid={handleTogglePinStatusGrid}
 			/>
 
 			{showImport && (
@@ -185,6 +195,7 @@ export default function App() {
 							initialScrollY={readScroll("subscribed")}
 							scrollContainerRef={subscribedScrollRef}
 							excludeSubscribed={excludeSubscribed}
+							pinStatusGrid={pinStatusGrid}
 						/>
 					</div>
 				</div>
