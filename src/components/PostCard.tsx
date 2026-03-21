@@ -149,17 +149,8 @@ function CardPreview({ card }: { card: mastodon.v1.PreviewCard | null }) {
 	);
 }
 
-function AccountInfo({
-	account,
-	onSubscribe,
-	isSubscribed,
-}: {
-	account: mastodon.v1.Account;
-	onSubscribe: (handle: string) => void;
-	isSubscribed: (handle: string) => boolean;
-}) {
+function AccountInfo({ account }: { account: mastodon.v1.Account }) {
 	const handle = formatHandle(account);
-	const subscribed = isSubscribed(handle);
 
 	return (
 		<div className="flex items-center gap-2 min-w-0">
@@ -196,17 +187,6 @@ function AccountInfo({
 					</span>
 				</div>
 			</div>
-			<button
-				type="button"
-				onClick={() => onSubscribe(handle)}
-				className={`flex-shrink-0 text-xs px-2 py-1 rounded border transition-colors ${
-					subscribed
-						? "bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900 dark:border-blue-700 dark:text-blue-300"
-						: "border-gray-300 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
-				}`}
-			>
-				{subscribed ? "Subscribed" : "+ Subscribe"}
-			</button>
 		</div>
 	);
 }
@@ -306,11 +286,7 @@ export function PostCard({
 			)}
 
 			{/* Author */}
-			<AccountInfo
-				account={actual.account}
-				onSubscribe={onSubscribe}
-				isSubscribed={isSubscribed}
-			/>
+			<AccountInfo account={actual.account} />
 
 			{/* Reply indicator */}
 			{actual.inReplyToId && (
@@ -376,6 +352,19 @@ export function PostCard({
 			{/* Footer */}
 			<div className="flex items-center justify-between mt-3 text-gray-400 text-xs">
 				<div className="flex items-center gap-4">
+					<button
+						type="button"
+						onClick={() => onSubscribe(formatHandle(actual.account))}
+						className={`text-xs px-2 py-1 rounded border transition-colors ${
+							isSubscribed(formatHandle(actual.account))
+								? "bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900 dark:border-blue-700 dark:text-blue-300"
+								: "border-gray-300 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+						}`}
+					>
+						{isSubscribed(formatHandle(actual.account))
+							? "Subscribed"
+							: "+ Subscribe"}
+					</button>
 					<span className="flex items-center gap-1">
 						<FontAwesomeIcon icon={faComment} />
 						{actual.repliesCount}
