@@ -48,7 +48,7 @@ export function SubscribedPage({
 		requestAnimationFrame(() =>
 			dividerRef.current?.scrollIntoView({
 				behavior: "smooth",
-				block: "start",
+				block: "center",
 			}),
 		);
 	}, [dividerPostId]);
