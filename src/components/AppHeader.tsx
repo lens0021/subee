@@ -87,77 +87,80 @@ export function AppHeader({
 							Home
 						</button>
 					</nav>
-					<div className="flex items-center px-2 min-w-0 shrink">
-						<span className="text-xs text-gray-400 px-1 truncate max-w-[8rem]">
-							{instanceHostname}
-						</span>
-						<div ref={menuRef} className="relative">
-							<button
-								type="button"
-								onClick={() => setShowMenu((v) => !v)}
-								className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-							>
-								<FontAwesomeIcon icon={faCog} />
-							</button>
-							{showMenu && (
-								<div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-50 min-w-max">
-									<button
-										type="button"
-										onClick={() => {
-											handleCopy();
-											setShowMenu(false);
-										}}
-										className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
-									>
-										<FontAwesomeIcon
-											icon={faShareFromSquare}
-											className={copied ? "text-green-500" : ""}
-										/>
-										{copied ? "Copied!" : "Export subscriptions"}
-									</button>
-									<button
-										type="button"
-										onClick={() => {
-											onImportClick();
-											setShowMenu(false);
-										}}
-										className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
-									>
-										<FontAwesomeIcon icon={faFileImport} />
-										Import subscriptions
-									</button>
-									<button
-										type="button"
-										onClick={() => {
-											onAddAccountClick();
-											setShowMenu(false);
-										}}
-										className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
-									>
-										<FontAwesomeIcon icon={faPlus} />
-										Subscribe to account
-									</button>
-									<label className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
-										<input
-											type="checkbox"
-											checked={excludeSubscribed}
-											onChange={(e) =>
-												onToggleExcludeSubscribed(e.target.checked)
-											}
-										/>
-										Exclude subscribed
-									</label>
-								</div>
-							)}
-						</div>
+					<div ref={menuRef} className="relative flex-shrink-0 px-2">
 						<button
 							type="button"
-							onClick={onLogout}
-							title="Log out"
-							className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+							onClick={() => setShowMenu((v) => !v)}
+							className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
 						>
-							<FontAwesomeIcon icon={faSignOutAlt} />
+							<FontAwesomeIcon icon={faCog} />
 						</button>
+						{showMenu && (
+							<div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-50 min-w-max">
+								<div className="px-4 py-2 text-xs text-gray-400 border-b border-gray-200 dark:border-gray-700">
+									{instanceHostname}
+								</div>
+								<button
+									type="button"
+									onClick={() => {
+										handleCopy();
+										setShowMenu(false);
+									}}
+									className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+								>
+									<FontAwesomeIcon
+										icon={faShareFromSquare}
+										className={copied ? "text-green-500" : ""}
+									/>
+									{copied ? "Copied!" : "Export subscriptions"}
+								</button>
+								<button
+									type="button"
+									onClick={() => {
+										onImportClick();
+										setShowMenu(false);
+									}}
+									className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+								>
+									<FontAwesomeIcon icon={faFileImport} />
+									Import subscriptions
+								</button>
+								<button
+									type="button"
+									onClick={() => {
+										onAddAccountClick();
+										setShowMenu(false);
+									}}
+									className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+								>
+									<FontAwesomeIcon icon={faPlus} />
+									Subscribe to account
+								</button>
+								<label className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
+									<input
+										type="checkbox"
+										checked={excludeSubscribed}
+										onChange={(e) =>
+											onToggleExcludeSubscribed(e.target.checked)
+										}
+									/>
+									Exclude subscribed
+								</label>
+								<div className="border-t border-gray-200 dark:border-gray-700">
+									<button
+										type="button"
+										onClick={() => {
+											onLogout();
+											setShowMenu(false);
+										}}
+										className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500"
+									>
+										<FontAwesomeIcon icon={faSignOutAlt} />
+										Log out
+									</button>
+								</div>
+							</div>
+						)}
 					</div>
 				</div>
 			</div>
