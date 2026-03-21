@@ -21,8 +21,6 @@ interface AppHeaderProps {
 	onAddAccountClick: () => void;
 	excludeSubscribed: boolean;
 	onToggleExcludeSubscribed: (v: boolean) => void;
-	pinStatusGrid: boolean;
-	onTogglePinStatusGrid: (v: boolean) => void;
 }
 
 export function AppHeader({
@@ -35,8 +33,6 @@ export function AppHeader({
 	onAddAccountClick,
 	excludeSubscribed,
 	onToggleExcludeSubscribed,
-	pinStatusGrid,
-	onTogglePinStatusGrid,
 }: AppHeaderProps) {
 	const [showMenu, setShowMenu] = useState(false);
 	const [copied, setCopied] = useState(false);
@@ -117,7 +113,7 @@ export function AppHeader({
 											icon={faShareFromSquare}
 											className={copied ? "text-green-500" : ""}
 										/>
-										{copied ? "Copied!" : "Export"}
+										{copied ? "Copied!" : "Export subscriptions"}
 									</button>
 									<button
 										type="button"
@@ -128,7 +124,7 @@ export function AppHeader({
 										className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
 									>
 										<FontAwesomeIcon icon={faFileImport} />
-										Import
+										Import subscriptions
 									</button>
 									<button
 										type="button"
@@ -139,7 +135,7 @@ export function AppHeader({
 										className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
 									>
 										<FontAwesomeIcon icon={faPlus} />
-										Add account
+										Subscribe to account
 									</button>
 									<label className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
 										<input
@@ -150,14 +146,6 @@ export function AppHeader({
 											}
 										/>
 										Exclude subscribed
-									</label>
-									<label className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
-										<input
-											type="checkbox"
-											checked={pinStatusGrid}
-											onChange={(e) => onTogglePinStatusGrid(e.target.checked)}
-										/>
-										Show account status
 									</label>
 								</div>
 							)}

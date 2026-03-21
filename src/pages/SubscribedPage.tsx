@@ -14,7 +14,6 @@ interface SubscribedPageProps {
 	initialScrollY: number;
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 	excludeSubscribed: boolean;
-	pinStatusGrid: boolean;
 }
 
 export function SubscribedPage({
@@ -26,7 +25,6 @@ export function SubscribedPage({
 	initialScrollY,
 	scrollContainerRef,
 	excludeSubscribed,
-	pinStatusGrid,
 }: SubscribedPageProps) {
 	const {
 		posts,
@@ -54,9 +52,7 @@ export function SubscribedPage({
 		);
 	}, [dividerPostId]);
 
-	const hasFailed = [...accountStatuses.values()].some((s) => s === "failed");
-	const showGrid =
-		accountStatuses.size > 0 && (loading || hasFailed || pinStatusGrid);
+	const showGrid = accountStatuses.size > 0;
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run only on mount
 	useEffect(() => {
