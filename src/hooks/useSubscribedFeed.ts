@@ -247,7 +247,6 @@ export function useSubscribedFeed(
 					if (maxLastPolledAt > 0) setLastPollTime(maxLastPolledAt);
 					loadingRef.current = false;
 					setLoading(false);
-					poll();
 					return;
 				}
 			}
