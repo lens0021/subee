@@ -18,7 +18,10 @@ async function fetchLocalEmojis(
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({}),
 		});
-		if (!res.ok) return {};
+		if (!res.ok) {
+			lsSet(cacheKey, {});
+			return {};
+		}
 		const data = (await res.json()) as {
 			emojis: { name: string; url: string }[];
 		};
@@ -64,12 +67,32 @@ export async function fetchMisskeyReactions(statusUrl: string): Promise<{
 
 		if (!(await isMisskey(hostname))) return null;
 
+		const restrictedKey = `subee:misskey:restricted:${hostname}`;
+		if (lsGet<boolean>(restrictedKey, EMOJI_CACHE_TTL)) return null;
+
 		const res = await fetch(`https://${hostname}/api/notes/show`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ noteId }),
 		});
-		if (!res.ok) return null;
+		if (!res.ok) {
+			if (res.status === 400) {
+				try {
+					const err = await res.json();
+					const errCode = err?.error?.code ?? err?.code;
+					if (errCode) {
+						// Valid Misskey error (e.g. CONTENT_RESTRICTED_BY_USER) — skip this instance for 7 days
+						lsSet(restrictedKey, true);
+					} else {
+						// Not a Misskey-format error — false-positive isMisskey, mark permanently
+						localStorage.setItem(`subee:misskey:is:${hostname}`, "false");
+					}
+				} catch {
+					localStorage.setItem(`subee:misskey:is:${hostname}`, "false");
+				}
+			}
+			return null;
+		}
 
 		const note = (await res.json()) as entities.Note;
 		const reactions = (note.reactions ?? {}) as MisskeyReactions;

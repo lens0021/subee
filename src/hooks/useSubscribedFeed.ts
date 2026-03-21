@@ -230,9 +230,22 @@ export function useSubscribedFeed(
 				`subee:cursors:${instanceUrl}`,
 				CURSOR_CACHE_TTL,
 			);
+			if (!cachedCursors) {
+				console.warn(
+					"[subee] cursor cache not found or expired for",
+					instanceUrl,
+				);
+			}
 			if (cachedCursors) {
 				const cursorMap = new Map(cachedCursors);
-				const allCovered = [...handles].every((h) => cursorMap.has(h));
+				const missingHandles = [...handles].filter((h) => !cursorMap.has(h));
+				const allCovered = missingHandles.length === 0;
+				if (!allCovered) {
+					console.warn(
+						"[subee] cursor cache miss — missing handles:",
+						missingHandles,
+					);
+				}
 				if (allCovered) {
 					cursorsRef.current = cursorMap;
 					initializedRef.current = true;
@@ -268,16 +281,16 @@ export function useSubscribedFeed(
 							{ limit: PAGE_SIZE, maxId: cursor.maxId },
 							accessToken,
 						);
-						if (results.length < PAGE_SIZE) {
-							cursorsRef.current.set(cursor.handle, { ...cursor, done: true });
-						}
 						if (results.length > 0) {
 							cursorsRef.current.set(cursor.handle, {
 								...cursor,
+								done: results.length < PAGE_SIZE,
 								maxId: results[results.length - 1].id,
 								sinceId: cursor.sinceId ?? results[0].id,
 							});
 							pendingRef.current.push(...results);
+						} else {
+							cursorsRef.current.set(cursor.handle, { ...cursor, done: true });
 						}
 						setAccountStatuses((prev) =>
 							new Map(prev).set(cursor.handle, "done"),
