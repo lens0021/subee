@@ -5,43 +5,39 @@ export type MisskeyReactions = Record<string, number>;
 
 const EMOJI_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-const fetchingEmojis = new Map<string, Promise<Record<string, string>>>();
+const fetchingEmoji = new Map<string, Promise<string | null>>();
 
-async function fetchLocalEmojis(
+async function fetchLocalEmoji(
 	hostname: string,
-): Promise<Record<string, string>> {
-	const cacheKey = `subee:misskey:emojis:${hostname}`;
-	const cached = lsGet<Record<string, string>>(cacheKey, EMOJI_CACHE_TTL);
+	name: string,
+): Promise<string | null> {
+	const cacheKey = `subee:misskey:emoji:${hostname}:${name}`;
+	const cached = lsGet<string>(cacheKey, EMOJI_CACHE_TTL);
 	if (cached) return cached;
 
-	const inflight = fetchingEmojis.get(hostname);
+	const inflightKey = `${hostname}:${name}`;
+	const inflight = fetchingEmoji.get(inflightKey);
 	if (inflight) return inflight;
 
 	const promise = (async () => {
 		try {
-			const res = await fetch(`https://${hostname}/api/emojis`, {
+			const res = await fetch(`https://${hostname}/api/emoji`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({}),
+				body: JSON.stringify({ name }),
 			});
-			if (!res.ok) {
-				lsSet(cacheKey, {});
-				return {};
-			}
-			const data = (await res.json()) as {
-				emojis: { name: string; url: string }[];
-			};
-			const map = Object.fromEntries(data.emojis.map((e) => [e.name, e.url]));
-			lsSet(cacheKey, map);
-			return map;
+			if (!res.ok) return null;
+			const data = (await res.json()) as { url: string };
+			lsSet(cacheKey, data.url);
+			return data.url;
 		} catch {
-			return {};
+			return null;
 		} finally {
-			fetchingEmojis.delete(hostname);
+			fetchingEmoji.delete(inflightKey);
 		}
 	})();
 
-	fetchingEmojis.set(hostname, promise);
+	fetchingEmoji.set(inflightKey, promise);
 	return promise;
 }
 
@@ -132,17 +128,16 @@ export async function fetchMisskeyReactions(statusUrl: string): Promise<{
 		};
 
 		// reactionEmojis only contains remote emojis; local emojis (name@.)
-		// must be looked up from the instance's emoji list.
-		const hasLocalEmoji = Object.keys(reactions).some((r) => r.endsWith("@.:"));
-		if (hasLocalEmoji) {
-			const localEmojis = await fetchLocalEmojis(hostname);
-			for (const reaction of Object.keys(reactions)) {
-				const localMatch = reaction.match(/^:(.+)@\.:$/);
-				if (localMatch) {
-					const name = localMatch[1];
-					if (localEmojis[name])
-						reactionEmojis[`${name}@.`] = localEmojis[name];
-				}
+		// must be looked up individually from the instance.
+		const localEmojiNames = Object.keys(reactions)
+			.map((r) => r.match(/^:(.+)@\.:$/)?.[1])
+			.filter((n): n is string => !!n);
+		if (localEmojiNames.length > 0) {
+			const urls = await Promise.all(
+				localEmojiNames.map((name) => fetchLocalEmoji(hostname, name)),
+			);
+			for (let i = 0; i < localEmojiNames.length; i++) {
+				if (urls[i]) reactionEmojis[`${localEmojiNames[i]}@.`] = urls[i]!;
 			}
 		}
 
