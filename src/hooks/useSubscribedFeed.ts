@@ -12,7 +12,7 @@ import {
 const PAGE_SIZE = 20;
 const CONCURRENCY = 10;
 const FLUSH_EVERY = 20; // update UI after every N accounts complete
-const BG_CONCURRENCY = 3; // lower concurrency for background polling
+const POLL_CONCURRENCY = 3;
 const MAX_CACHED_POSTS = 200;
 const CURSOR_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 const POST_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
@@ -33,7 +33,7 @@ export interface FeedProgress {
 	phase: "resolving" | "loading";
 }
 
-export interface BgProgress {
+export interface PollProgress {
 	done: number;
 	total: number;
 }
@@ -83,7 +83,7 @@ export function useSubscribedFeed(
 	>(new Map());
 	const [stagedCount, setStagedCount] = useState(0);
 	const [dividerPostId, setDividerPostId] = useState<string | null>(null);
-	const [bgProgress, setBgProgress] = useState<BgProgress | null>(null);
+	const [pollProgress, setPollProgress] = useState<PollProgress | null>(null);
 
 	// Always-current mirror of posts state for use inside callbacks
 	const postsRef = useRef(posts);
@@ -95,9 +95,9 @@ export function useSubscribedFeed(
 	// Buffer for progressive rendering — flushed in batches to avoid
 	// running an expensive sort on every single account response.
 	const pendingRef = useRef<mastodon.v1.Status[]>([]);
-	// Background staging buffer — posts fetched in background, not yet visible.
-	const bgBufferRef = useRef<mastodon.v1.Status[]>([]);
-	const bgRunningRef = useRef(false);
+	// Staging buffer — posts fetched by polling, not yet visible in the feed.
+	const bufferRef = useRef<mastodon.v1.Status[]>([]);
+	const pollingRef = useRef(false);
 
 	const flush = useCallback(() => {
 		if (pendingRef.current.length === 0) return;
@@ -166,17 +166,17 @@ export function useSubscribedFeed(
 		initializedRef.current = true;
 	}, [handles, instanceUrl, accessToken]);
 
-	const backgroundPoll = useCallback(async () => {
-		if (bgRunningRef.current || loadingRef.current || !initializedRef.current)
+	const poll = useCallback(async () => {
+		if (pollingRef.current || loadingRef.current || !initializedRef.current)
 			return;
-		bgRunningRef.current = true;
+		pollingRef.current = true;
 		try {
 			const cursors = [...cursorsRef.current.values()]
 				.filter((c) => c.sinceId)
 				.sort((a, b) => (a.lastPolledAt ?? 0) - (b.lastPolledAt ?? 0));
 			if (cursors.length === 0) return;
 			let done = 0;
-			setBgProgress({ done: 0, total: cursors.length });
+			setPollProgress({ done: 0, total: cursors.length });
 			const cycleBuffer: mastodon.v1.Status[] = [];
 			await concurrent(
 				cursors.map((cursor) => async () => {
@@ -196,25 +196,25 @@ export function useSubscribedFeed(
 							cycleBuffer.push(...results);
 						}
 					} catch {
-						// silently ignore background errors
+						// silently ignore poll errors
 					}
-					setBgProgress({ done: ++done, total: cursors.length });
+					setPollProgress({ done: ++done, total: cursors.length });
 				}),
-				BG_CONCURRENCY,
+				POLL_CONCURRENCY,
 			);
 			if (cycleBuffer.length > 0) {
-				bgBufferRef.current.push(...cycleBuffer);
-				setStagedCount(bgBufferRef.current.length);
+				bufferRef.current.push(...cycleBuffer);
+				setStagedCount(bufferRef.current.length);
 			}
 		} finally {
-			bgRunningRef.current = false;
-			setBgProgress(null);
+			pollingRef.current = false;
+			setPollProgress(null);
 		}
 	}, [accessToken]);
 
 	const triggerPoll = useCallback(() => {
-		backgroundPoll();
-	}, [backgroundPoll]);
+		poll();
+	}, [poll]);
 
 	const fetchMore = useCallback(async () => {
 		if (loadingRef.current) return;
@@ -241,8 +241,7 @@ export function useSubscribedFeed(
 					);
 					loadingRef.current = false;
 					setLoading(false);
-					// Immediately poll for new posts in background
-					backgroundPoll();
+					poll();
 					return;
 				}
 			}
@@ -303,14 +302,14 @@ export function useSubscribedFeed(
 			setLoading(false);
 			setProgress(null);
 		}
-	}, [handles, instanceUrl, accessToken, initCursors, flush, backgroundPoll]);
+	}, [handles, instanceUrl, accessToken, initCursors, flush, poll]);
 
-	const refresh = useCallback(() => {
-		if (bgBufferRef.current.length === 0) return;
+	const flushBuffer = useCallback(() => {
+		if (bufferRef.current.length === 0) return;
 
 		const prevTopId = postsRef.current[0]?.id ?? null;
 		setDividerPostId(null);
-		pendingRef.current.push(...bgBufferRef.current.splice(0));
+		pendingRef.current.push(...bufferRef.current.splice(0));
 		setStagedCount(0);
 		flush();
 		if (prevTopId) setDividerPostId(prevTopId);
@@ -322,11 +321,11 @@ export function useSubscribedFeed(
 		error,
 		progress,
 		fetchMore,
-		refresh,
+		flushBuffer,
 		triggerPoll,
 		accountStatuses,
 		stagedCount,
 		dividerPostId,
-		bgProgress,
+		pollProgress,
 	};
 }

@@ -2,14 +2,14 @@ import { faArrowUp } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { RefObject } from "react";
 import { useEffect, useState } from "react";
-import type { BgProgress } from "../hooks/useSubscribedFeed";
+import type { PollProgress } from "../hooks/useSubscribedFeed";
 
 interface FloatingRefreshButtonProps {
 	onPoll?: () => void;
 	onRefresh: () => void;
 	scrollContainerRef: RefObject<HTMLElement | null>;
 	stagedCount?: number;
-	bgProgress?: BgProgress | null;
+	bgProgress?: PollProgress | null;
 }
 
 export function FloatingRefreshButton({
