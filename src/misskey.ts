@@ -70,11 +70,18 @@ export async function fetchMisskeyReactions(statusUrl: string): Promise<{
 		const restrictedKey = `subee:misskey:restricted:${hostname}`;
 		if (lsGet<boolean>(restrictedKey, EMOJI_CACHE_TTL)) return null;
 
-		const res = await fetch(`https://${hostname}/api/notes/show`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ noteId }),
-		});
+		let res: Response;
+		try {
+			res = await fetch(`https://${hostname}/api/notes/show`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ noteId }),
+			});
+		} catch {
+			// Network error or browser-blocked request — skip this instance for 7 days
+			lsSet(restrictedKey, true);
+			return null;
+		}
 		if (!res.ok) {
 			if (res.status === 400) {
 				try {
