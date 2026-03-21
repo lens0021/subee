@@ -37,6 +37,8 @@ interface PostListProps {
 	scrollContainerRef: RefObject<HTMLElement | null>;
 	onMount?: () => void;
 	excludeSubscribed?: boolean;
+	dividerPostId?: string | null;
+	onDividerRef?: (el: HTMLElement | null) => void;
 }
 
 function ProgressBar({ progress }: { progress: FeedProgress }) {
@@ -77,6 +79,8 @@ export function PostList({
 	scrollContainerRef,
 	onMount,
 	excludeSubscribed,
+	dividerPostId,
+	onDividerRef,
 }: PostListProps) {
 	useInfiniteScroll(onLoadMore, scrollContainerRef);
 
@@ -120,6 +124,16 @@ export function PostList({
 					status.reblog === null && isSubscribed(formatHandle(status.account));
 				return (
 					<PostCardErrorBoundary key={status.id}>
+						{dividerPostId === status.id && (
+							<div
+								ref={onDividerRef}
+								className="flex items-center gap-3 px-4 py-2 text-xs text-blue-400 select-none"
+							>
+								<div className="flex-1 h-px bg-blue-300 dark:bg-blue-700" />
+								<span>새 게시물</span>
+								<div className="flex-1 h-px bg-blue-300 dark:bg-blue-700" />
+							</div>
+						)}
 						<div data-subscribed={subscribed || undefined}>
 							<PostCard
 								status={status}

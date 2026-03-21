@@ -1,11 +1,22 @@
 import { orderBy } from "lodash";
 import type { mastodon } from "masto";
-import { useCallback, useRef, useState } from "react";
-import { fetchAccountStatuses, lookupAccount, parseHandle } from "../mastodon";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	fetchAccountStatuses,
+	lookupAccount,
+	lsGet,
+	lsSet,
+	parseHandle,
+} from "../mastodon";
 
 const PAGE_SIZE = 20;
 const CONCURRENCY = 10;
 const FLUSH_EVERY = 20; // update UI after every N accounts complete
+const BG_CONCURRENCY = 3; // lower concurrency for background polling
+const BG_POLL_INTERVAL_MS = 60 * 1000; // poll every 1 minute
+const MAX_CACHED_POSTS = 200;
+const CURSOR_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+const POST_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 interface AccountCursor {
 	accountId: string;
@@ -51,19 +62,36 @@ export function useSubscribedFeed(
 	instanceUrl: string,
 	accessToken: string,
 ) {
-	const [posts, setPosts] = useState<mastodon.v1.Status[]>([]);
+	const [posts, setPosts] = useState<mastodon.v1.Status[]>(
+		// Restore cached posts immediately on first render
+		() =>
+			lsGet<mastodon.v1.Status[]>(
+				`subee:posts:${instanceUrl}`,
+				POST_CACHE_TTL,
+			) ?? [],
+	);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [progress, setProgress] = useState<FeedProgress | null>(null);
 	const [accountStatuses, setAccountStatuses] = useState<
 		Map<string, AccountLoadStatus>
 	>(new Map());
+	const [stagedCount, setStagedCount] = useState(0);
+	const [dividerPostId, setDividerPostId] = useState<string | null>(null);
+
+	// Always-current mirror of posts state for use inside callbacks
+	const postsRef = useRef(posts);
+	postsRef.current = posts;
+
 	const cursorsRef = useRef<Map<string, AccountCursor>>(new Map());
 	const initializedRef = useRef(false);
 	const loadingRef = useRef(false);
 	// Buffer for progressive rendering — flushed in batches to avoid
 	// running an expensive sort on every single account response.
 	const pendingRef = useRef<mastodon.v1.Status[]>([]);
+	// Background staging buffer — posts fetched in background, not yet visible.
+	const bgBufferRef = useRef<mastodon.v1.Status[]>([]);
+	const bgRunningRef = useRef(false);
 
 	const flush = useCallback(() => {
 		if (pendingRef.current.length === 0) return;
@@ -71,9 +99,11 @@ export function useSubscribedFeed(
 		setPosts((prev) => {
 			const all = [...prev, ...toAdd];
 			const deduped = [...new Map(all.map((p) => [p.id, p])).values()];
-			return orderBy(deduped, (p) => p.createdAt, "desc");
+			const sorted = orderBy(deduped, (p) => p.createdAt, "desc");
+			lsSet(`subee:posts:${instanceUrl}`, sorted.slice(0, MAX_CACHED_POSTS));
+			return sorted;
 		});
-	}, []);
+	}, [instanceUrl]);
 
 	const initCursors = useCallback(async () => {
 		const handlesList = [...handles];
@@ -89,8 +119,6 @@ export function useSubscribedFeed(
 			handlesList.map((handle) => async () => {
 				const { username, instanceUrl: remoteInstanceUrl } =
 					parseHandle(handle);
-				// Look up the account on the user's own instance so that fetched
-				// statuses have local IDs and interactions work without extra resolution.
 				const acct =
 					remoteInstanceUrl === instanceUrl
 						? username
@@ -116,9 +144,60 @@ export function useSubscribedFeed(
 			CONCURRENCY,
 		);
 
+		// Save tombstones for failed lookups so cache restore can pass allCovered check
+		for (const handle of handlesList) {
+			if (!newCursors.has(handle)) {
+				newCursors.set(handle, {
+					accountId: "",
+					instanceUrl,
+					handle,
+					done: true,
+				});
+			}
+		}
+
 		cursorsRef.current = newCursors;
 		initializedRef.current = true;
 	}, [handles, instanceUrl, accessToken]);
+
+	const backgroundPoll = useCallback(async () => {
+		if (bgRunningRef.current || loadingRef.current || !initializedRef.current)
+			return;
+		bgRunningRef.current = true;
+		try {
+			const cursors = [...cursorsRef.current.values()].filter((c) => c.sinceId);
+			await concurrent(
+				cursors.map((cursor) => async () => {
+					try {
+						const results = await fetchAccountStatuses(
+							cursor.instanceUrl,
+							cursor.accountId,
+							{ sinceId: cursor.sinceId, limit: PAGE_SIZE },
+							accessToken,
+						);
+						if (results.length > 0) {
+							cursorsRef.current.set(cursor.handle, {
+								...cursor,
+								sinceId: results[0].id,
+							});
+							bgBufferRef.current.push(...results);
+							setStagedCount((prev) => prev + results.length);
+						}
+					} catch {
+						// silently ignore background errors
+					}
+				}),
+				BG_CONCURRENCY,
+			);
+		} finally {
+			bgRunningRef.current = false;
+		}
+	}, [accessToken]);
+
+	useEffect(() => {
+		const id = setInterval(backgroundPoll, BG_POLL_INTERVAL_MS);
+		return () => clearInterval(id);
+	}, [backgroundPoll]);
 
 	const fetchMore = useCallback(async () => {
 		if (loadingRef.current) return;
@@ -127,6 +206,29 @@ export function useSubscribedFeed(
 		setError(null);
 
 		if (!initializedRef.current) {
+			// Try to restore cursors from cache
+			const cachedCursors = lsGet<[string, AccountCursor][]>(
+				`subee:cursors:${instanceUrl}`,
+				CURSOR_CACHE_TTL,
+			);
+			if (cachedCursors) {
+				const cursorMap = new Map(cachedCursors);
+				const allCovered = [...handles].every((h) => cursorMap.has(h));
+				if (allCovered) {
+					cursorsRef.current = cursorMap;
+					initializedRef.current = true;
+					setAccountStatuses(
+						new Map(
+							cachedCursors.map(([h]) => [h, "done" as AccountLoadStatus]),
+						),
+					);
+					loadingRef.current = false;
+					setLoading(false);
+					// Immediately poll for new posts in background
+					backgroundPoll();
+					return;
+				}
+			}
 			await initCursors();
 		}
 
@@ -152,7 +254,6 @@ export function useSubscribedFeed(
 							cursorsRef.current.set(cursor.handle, {
 								...cursor,
 								maxId: results[results.length - 1].id,
-								// Track the newest post seen for subsequent refreshes
 								sinceId: cursor.sinceId ?? results[0].id,
 							});
 							pendingRef.current.push(...results);
@@ -180,82 +281,23 @@ export function useSubscribedFeed(
 		} catch (e) {
 			setError(String(e));
 		} finally {
+			lsSet(`subee:cursors:${instanceUrl}`, [...cursorsRef.current.entries()]);
 			loadingRef.current = false;
 			setLoading(false);
 			setProgress(null);
 		}
-	}, [initCursors, flush, accessToken]);
+	}, [handles, instanceUrl, accessToken, initCursors, flush, backgroundPoll]);
 
-	const refresh = useCallback(async () => {
-		if (loadingRef.current) return;
-		loadingRef.current = true;
-		setLoading(true);
-		setError(null);
+	const refresh = useCallback(() => {
+		if (bgBufferRef.current.length === 0) return;
 
-		if (!initializedRef.current) {
-			await initCursors();
-		} else {
-			setAccountStatuses(
-				new Map(
-					[...cursorsRef.current.keys()].map((h) => [
-						h,
-						"loading" as AccountLoadStatus,
-					]),
-				),
-			);
-		}
-
-		try {
-			const cursors = [...cursorsRef.current.values()];
-			let completed = 0;
-
-			setProgress({ done: 0, total: cursors.length, phase: "loading" });
-
-			await concurrent(
-				cursors.map((cursor) => async () => {
-					try {
-						const results = await fetchAccountStatuses(
-							cursor.instanceUrl,
-							cursor.accountId,
-							{ sinceId: cursor.sinceId, limit: PAGE_SIZE },
-							accessToken,
-						);
-						if (results.length > 0) {
-							// Update sinceId to the newest post from this refresh
-							cursorsRef.current.set(cursor.handle, {
-								...cursor,
-								sinceId: results[0].id,
-							});
-							pendingRef.current.push(...results);
-						}
-						setAccountStatuses((prev) =>
-							new Map(prev).set(cursor.handle, "done"),
-						);
-					} catch {
-						setAccountStatuses((prev) =>
-							new Map(prev).set(cursor.handle, "failed"),
-						);
-					}
-					completed++;
-					setProgress({
-						done: completed,
-						total: cursors.length,
-						phase: "loading",
-					});
-					if (completed % FLUSH_EVERY === 0) flush();
-				}),
-				CONCURRENCY,
-			);
-
-			flush();
-		} catch (e) {
-			setError(String(e));
-		} finally {
-			loadingRef.current = false;
-			setLoading(false);
-			setProgress(null);
-		}
-	}, [initCursors, flush, accessToken]);
+		const prevTopId = postsRef.current[0]?.id ?? null;
+		setDividerPostId(null);
+		pendingRef.current.push(...bgBufferRef.current.splice(0));
+		setStagedCount(0);
+		flush();
+		if (prevTopId) setDividerPostId(prevTopId);
+	}, [flush]);
 
 	return {
 		posts,
@@ -265,5 +307,7 @@ export function useSubscribedFeed(
 		fetchMore,
 		refresh,
 		accountStatuses,
+		stagedCount,
+		dividerPostId,
 	};
 }

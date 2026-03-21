@@ -6,35 +6,34 @@ import { useEffect, useState } from "react";
 interface FloatingRefreshButtonProps {
 	onRefresh: () => void;
 	scrollContainerRef: RefObject<HTMLElement | null>;
+	stagedCount?: number;
 }
 
 export function FloatingRefreshButton({
 	onRefresh,
 	scrollContainerRef,
+	stagedCount = 0,
 }: FloatingRefreshButtonProps) {
-	const [visible, setVisible] = useState(false);
+	const [scrolled, setScrolled] = useState(false);
 
 	useEffect(() => {
 		const el = scrollContainerRef.current;
 		if (!el) return;
-		const handleScroll = () => setVisible(el.scrollTop > 200);
+		const handleScroll = () => setScrolled(el.scrollTop > 200);
 		el.addEventListener("scroll", handleScroll, { passive: true });
 		return () => el.removeEventListener("scroll", handleScroll);
 	}, [scrollContainerRef]);
 
-	if (!visible) return null;
+	if (!scrolled && stagedCount === 0) return null;
 
 	return (
 		<button
 			type="button"
-			onClick={() => {
-				scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-				onRefresh();
-			}}
+			onClick={onRefresh}
 			className="fixed top-16 left-1/2 -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium hover:bg-blue-600 transition-colors z-30"
 		>
 			<FontAwesomeIcon icon={faArrowUp} />
-			Refresh
+			{stagedCount > 0 ? `${stagedCount} new` : "Refresh"}
 		</button>
 	);
 }

@@ -36,7 +36,21 @@ export function SubscribedPage({
 		fetchMore,
 		refresh,
 		accountStatuses,
+		stagedCount,
+		dividerPostId,
 	} = useSubscribedFeed(handles, instanceUrl, accessToken);
+
+	const dividerRef = useRef<HTMLElement | null>(null);
+
+	useEffect(() => {
+		if (!dividerPostId) return;
+		requestAnimationFrame(() =>
+			dividerRef.current?.scrollIntoView({
+				behavior: "smooth",
+				block: "start",
+			}),
+		);
+	}, [dividerPostId]);
 
 	const hasFailed = [...accountStatuses.values()].some((s) => s === "failed");
 	const showGrid =
@@ -79,6 +93,7 @@ export function SubscribedPage({
 			<FloatingRefreshButton
 				onRefresh={refresh}
 				scrollContainerRef={scrollContainerRef}
+				stagedCount={stagedCount}
 			/>
 			{showGrid && <AccountStatusGrid statuses={accountStatuses} />}
 			<PostList
@@ -93,6 +108,10 @@ export function SubscribedPage({
 				instanceUrl={instanceUrl}
 				accessToken={accessToken}
 				scrollContainerRef={scrollContainerRef}
+				dividerPostId={dividerPostId}
+				onDividerRef={(el) => {
+					dividerRef.current = el;
+				}}
 			/>
 		</>
 	);
