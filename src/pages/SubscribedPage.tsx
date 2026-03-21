@@ -94,7 +94,7 @@ export function SubscribedPage({
 				onRefresh={flushBuffer}
 				scrollContainerRef={scrollContainerRef}
 				stagedCount={stagedCount}
-				bgProgress={pollProgress}
+				pollProgress={pollProgress}
 				lastPollTime={lastPollTime}
 			/>
 			{showGrid && <AccountStatusGrid statuses={accountStatuses} />}

@@ -16,7 +16,7 @@ interface FloatingRefreshButtonProps {
 	onRefresh: () => void;
 	scrollContainerRef: RefObject<HTMLElement | null>;
 	stagedCount?: number;
-	bgProgress?: PollProgress | null;
+	pollProgress?: PollProgress | null;
 	lastPollTime?: number | null;
 }
 
@@ -25,7 +25,7 @@ export function FloatingRefreshButton({
 	onPoll = onRefresh,
 	scrollContainerRef,
 	stagedCount = 0,
-	bgProgress = null,
+	pollProgress = null,
 	lastPollTime = null,
 }: FloatingRefreshButtonProps) {
 	const [scrolled, setScrolled] = useState(false);
@@ -46,13 +46,13 @@ export function FloatingRefreshButton({
 		return () => clearInterval(id);
 	}, [lastPollTime]);
 
-	if (!scrolled && !bgProgress && stagedCount === 0) return null;
+	if (!scrolled && !pollProgress && stagedCount === 0) return null;
 
-	if (bgProgress) {
+	if (pollProgress) {
 		return (
 			<div className="fixed top-16 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-gray-700/80 text-gray-200 text-xs px-3 py-1.5 rounded-full shadow backdrop-blur-sm z-30 pointer-events-none">
 				<span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-				{bgProgress.done}/{bgProgress.total}
+				{pollProgress.done}/{pollProgress.total}
 			</div>
 		);
 	}
