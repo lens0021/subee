@@ -4,12 +4,20 @@ import type { RefObject } from "react";
 import { useEffect, useState } from "react";
 import type { PollProgress } from "../hooks/useSubscribedFeed";
 
+function relativeTime(ts: number): string {
+	const sec = Math.floor((Date.now() - ts) / 1000);
+	if (sec < 60) return "just now";
+	if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+	return `${Math.floor(sec / 3600)}h ago`;
+}
+
 interface FloatingRefreshButtonProps {
 	onPoll?: () => void;
 	onRefresh: () => void;
 	scrollContainerRef: RefObject<HTMLElement | null>;
 	stagedCount?: number;
 	bgProgress?: PollProgress | null;
+	lastPollTime?: number | null;
 }
 
 export function FloatingRefreshButton({
@@ -18,8 +26,10 @@ export function FloatingRefreshButton({
 	scrollContainerRef,
 	stagedCount = 0,
 	bgProgress = null,
+	lastPollTime = null,
 }: FloatingRefreshButtonProps) {
 	const [scrolled, setScrolled] = useState(false);
+	const [, tick] = useState(0);
 
 	useEffect(() => {
 		const el = scrollContainerRef.current;
@@ -28,6 +38,13 @@ export function FloatingRefreshButton({
 		el.addEventListener("scroll", handleScroll, { passive: true });
 		return () => el.removeEventListener("scroll", handleScroll);
 	}, [scrollContainerRef]);
+
+	// Re-render every 30s to keep relative time fresh
+	useEffect(() => {
+		if (!lastPollTime) return;
+		const id = setInterval(() => tick((n) => n + 1), 30_000);
+		return () => clearInterval(id);
+	}, [lastPollTime]);
 
 	if (!scrolled && !bgProgress && stagedCount === 0) return null;
 
@@ -60,7 +77,7 @@ export function FloatingRefreshButton({
 			className="fixed top-16 left-1/2 -translate-x-1/2 bg-gray-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium hover:bg-gray-700 transition-colors z-30"
 		>
 			<FontAwesomeIcon icon={faArrowUp} />
-			Refresh
+			Refresh{lastPollTime ? ` · ${relativeTime(lastPollTime)}` : ""}
 		</button>
 	);
 }

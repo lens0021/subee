@@ -84,6 +84,7 @@ export function useSubscribedFeed(
 	const [stagedCount, setStagedCount] = useState(0);
 	const [dividerPostId, setDividerPostId] = useState<string | null>(null);
 	const [pollProgress, setPollProgress] = useState<PollProgress | null>(null);
+	const [lastPollTime, setLastPollTime] = useState<number | null>(null);
 
 	// Always-current mirror of posts state for use inside callbacks
 	const postsRef = useRef(posts);
@@ -209,6 +210,7 @@ export function useSubscribedFeed(
 		} finally {
 			pollingRef.current = false;
 			setPollProgress(null);
+			setLastPollTime(Date.now());
 		}
 	}, [accessToken]);
 
@@ -239,6 +241,10 @@ export function useSubscribedFeed(
 							cachedCursors.map(([h]) => [h, "done" as AccountLoadStatus]),
 						),
 					);
+					const maxLastPolledAt = Math.max(
+						...[...cursorMap.values()].map((c) => c.lastPolledAt ?? 0),
+					);
+					if (maxLastPolledAt > 0) setLastPollTime(maxLastPolledAt);
 					loadingRef.current = false;
 					setLoading(false);
 					poll();
@@ -327,5 +333,6 @@ export function useSubscribedFeed(
 		stagedCount,
 		dividerPostId,
 		pollProgress,
+		lastPollTime,
 	};
 }
