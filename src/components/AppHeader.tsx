@@ -87,8 +87,8 @@ export function AppHeader({
 							Home
 						</button>
 					</nav>
-					<div className="flex items-center px-2 flex-shrink-0">
-						<span className="text-xs text-gray-400 px-1">
+					<div className="flex items-center px-2 min-w-0 shrink">
+						<span className="text-xs text-gray-400 px-1 truncate max-w-[8rem]">
 							{instanceHostname}
 						</span>
 						<div ref={menuRef} className="relative">
