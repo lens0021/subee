@@ -35,9 +35,11 @@ export function SubscribedPage({
 		progress,
 		fetchMore,
 		refresh,
+		triggerPoll,
 		accountStatuses,
 		stagedCount,
 		dividerPostId,
+		bgProgress,
 	} = useSubscribedFeed(handles, instanceUrl, accessToken);
 
 	const dividerRef = useRef<HTMLElement | null>(null);
@@ -91,9 +93,11 @@ export function SubscribedPage({
 	return (
 		<>
 			<FloatingRefreshButton
+				onPoll={triggerPoll}
 				onRefresh={refresh}
 				scrollContainerRef={scrollContainerRef}
 				stagedCount={stagedCount}
+				bgProgress={bgProgress}
 			/>
 			{showGrid && <AccountStatusGrid statuses={accountStatuses} />}
 			<PostList

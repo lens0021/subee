@@ -1,6 +1,7 @@
 import { debounce } from "lodash";
 import { useEffect, useRef, useState } from "react";
 import { AppHeader } from "./components/AppHeader";
+import { AddAccountOverlay } from "./components/AddAccountOverlay";
 import { ImportOverlay } from "./components/ImportOverlay";
 import { useAuth } from "./hooks/useAuth";
 import { useSubscriptions } from "./hooks/useSubscriptions";
@@ -29,6 +30,7 @@ export default function App() {
 	const [activeTab, setActiveTab] = useState<Tab>("subscribed");
 	const activeTabRef = useRef<Tab>("subscribed");
 	const [showImport, setShowImport] = useState(false);
+	const [showAddAccount, setShowAddAccount] = useState(false);
 	const [excludeSubscribed, setExcludeSubscribed] = useState(
 		() => localStorage.getItem("subee:excludeSubscribed") === "true",
 	);
@@ -164,12 +166,22 @@ export default function App() {
 				instanceHostname={instanceHostname}
 				onLogout={logout}
 				onImportClick={() => setShowImport(true)}
+				onAddAccountClick={() => setShowAddAccount(true)}
 				excludeSubscribed={excludeSubscribed}
 				onToggleExcludeSubscribed={handleToggleExcludeSubscribed}
 				pinStatusGrid={pinStatusGrid}
 				onTogglePinStatusGrid={handleTogglePinStatusGrid}
 			/>
 
+			{showAddAccount && (
+				<AddAccountOverlay
+					onConfirm={(handle) => {
+						subscribe(handle);
+						setShowAddAccount(false);
+					}}
+					onCancel={() => setShowAddAccount(false)}
+				/>
+			)}
 			{showImport && (
 				<ImportOverlay
 					onConfirm={handleImportConfirm}

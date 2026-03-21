@@ -13,7 +13,6 @@ const PAGE_SIZE = 20;
 const CONCURRENCY = 10;
 const FLUSH_EVERY = 20; // update UI after every N accounts complete
 const BG_CONCURRENCY = 3; // lower concurrency for background polling
-const BG_POLL_INTERVAL_MS = 60 * 1000; // poll every 1 minute
 const MAX_CACHED_POSTS = 200;
 const CURSOR_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 const POST_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
@@ -25,12 +24,18 @@ interface AccountCursor {
 	maxId?: string;
 	sinceId?: string;
 	done: boolean;
+	lastPolledAt?: number;
 }
 
 export interface FeedProgress {
 	done: number;
 	total: number;
 	phase: "resolving" | "loading";
+}
+
+export interface BgProgress {
+	done: number;
+	total: number;
 }
 
 export type AccountLoadStatus =
@@ -78,6 +83,7 @@ export function useSubscribedFeed(
 	>(new Map());
 	const [stagedCount, setStagedCount] = useState(0);
 	const [dividerPostId, setDividerPostId] = useState<string | null>(null);
+	const [bgProgress, setBgProgress] = useState<BgProgress | null>(null);
 
 	// Always-current mirror of posts state for use inside callbacks
 	const postsRef = useRef(posts);
@@ -165,7 +171,13 @@ export function useSubscribedFeed(
 			return;
 		bgRunningRef.current = true;
 		try {
-			const cursors = [...cursorsRef.current.values()].filter((c) => c.sinceId);
+			const cursors = [...cursorsRef.current.values()]
+				.filter((c) => c.sinceId)
+				.sort((a, b) => (a.lastPolledAt ?? 0) - (b.lastPolledAt ?? 0));
+			if (cursors.length === 0) return;
+			let done = 0;
+			setBgProgress({ done: 0, total: cursors.length });
+			const cycleBuffer: mastodon.v1.Status[] = [];
 			await concurrent(
 				cursors.map((cursor) => async () => {
 					try {
@@ -175,28 +187,33 @@ export function useSubscribedFeed(
 							{ sinceId: cursor.sinceId, limit: PAGE_SIZE },
 							accessToken,
 						);
+						cursorsRef.current.set(cursor.handle, {
+							...cursor,
+							...(results.length > 0 && { sinceId: results[0].id }),
+							lastPolledAt: Date.now(),
+						});
 						if (results.length > 0) {
-							cursorsRef.current.set(cursor.handle, {
-								...cursor,
-								sinceId: results[0].id,
-							});
-							bgBufferRef.current.push(...results);
-							setStagedCount((prev) => prev + results.length);
+							cycleBuffer.push(...results);
 						}
 					} catch {
 						// silently ignore background errors
 					}
+					setBgProgress({ done: ++done, total: cursors.length });
 				}),
 				BG_CONCURRENCY,
 			);
+			if (cycleBuffer.length > 0) {
+				bgBufferRef.current.push(...cycleBuffer);
+				setStagedCount(bgBufferRef.current.length);
+			}
 		} finally {
 			bgRunningRef.current = false;
+			setBgProgress(null);
 		}
 	}, [accessToken]);
 
-	useEffect(() => {
-		const id = setInterval(backgroundPoll, BG_POLL_INTERVAL_MS);
-		return () => clearInterval(id);
+	const triggerPoll = useCallback(() => {
+		backgroundPoll();
 	}, [backgroundPoll]);
 
 	const fetchMore = useCallback(async () => {
@@ -306,8 +323,10 @@ export function useSubscribedFeed(
 		progress,
 		fetchMore,
 		refresh,
+		triggerPoll,
 		accountStatuses,
 		stagedCount,
 		dividerPostId,
+		bgProgress,
 	};
 }
