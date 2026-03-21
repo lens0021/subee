@@ -53,7 +53,9 @@ export function SubscribedPage({
 		);
 	}, [dividerPostId]);
 
-	const showGrid = accountStatuses.size > 0;
+	// Show status grid only while any account is still loading or has failed.
+	// Hide once all are done (includes after cache restore).
+	const showGrid = [...accountStatuses.values()].some((s) => s !== "done");
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run only on mount
 	useEffect(() => {

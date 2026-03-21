@@ -247,13 +247,12 @@ export function useSubscribedFeed(
 					);
 				}
 				if (allCovered) {
-					cursorsRef.current = cursorMap;
-					initializedRef.current = true;
-					setAccountStatuses(
-						new Map(
-							cachedCursors.map(([h]) => [h, "done" as AccountLoadStatus]),
-						),
+					// Mark all cursors done so page refresh is instant with no API
+					// calls. sinceId is preserved so polling can still fetch new posts.
+					cursorsRef.current = new Map(
+						[...cursorMap.entries()].map(([h, c]) => [h, { ...c, done: true }]),
 					);
+					initializedRef.current = true;
 					const maxLastPolledAt = Math.max(
 						...[...cursorMap.values()].map((c) => c.lastPolledAt ?? 0),
 					);
@@ -268,6 +267,7 @@ export function useSubscribedFeed(
 
 		try {
 			const pending = [...cursorsRef.current.values()].filter((c) => !c.done);
+			if (pending.length === 0) return;
 			let completed = 0;
 
 			setProgress({ done: 0, total: pending.length, phase: "loading" });
