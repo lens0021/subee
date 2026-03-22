@@ -205,14 +205,22 @@ export function useSubscribedFeed(
 			);
 			if (cycleBuffer.length > 0) {
 				bufferRef.current.push(...cycleBuffer);
-				setStagedCount(bufferRef.current.length);
+				if (postsRef.current.length === 0) {
+					// Feed is empty (posts cache expired): flush directly without
+					// requiring the user to click "N new".
+					pendingRef.current.push(...bufferRef.current.splice(0));
+					setStagedCount(0);
+					flush();
+				} else {
+					setStagedCount(bufferRef.current.length);
+				}
 			}
 		} finally {
 			pollingRef.current = false;
 			setPollProgress(null);
 			setLastPollTime(Date.now());
 		}
-	}, [accessToken]);
+	}, [accessToken, flush]);
 
 	const triggerPoll = useCallback(() => {
 		poll();
@@ -259,6 +267,9 @@ export function useSubscribedFeed(
 					if (maxLastPolledAt > 0) setLastPollTime(maxLastPolledAt);
 					loadingRef.current = false;
 					setLoading(false);
+					// Posts cache expired but cursors are valid: auto-poll to restore
+					// recent posts using sinceId without full re-initialization.
+					if (postsRef.current.length === 0) poll();
 					return;
 				}
 			}
