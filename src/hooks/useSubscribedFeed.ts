@@ -15,7 +15,7 @@ const FLUSH_EVERY = 20; // update UI after every N accounts complete
 const POLL_CONCURRENCY = 3;
 const MAX_CACHED_POSTS = 200;
 const CURSOR_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
-const POST_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const POST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days (matches cursor cache)
 
 interface AccountCursor {
 	accountId: string;
@@ -205,22 +205,14 @@ export function useSubscribedFeed(
 			);
 			if (cycleBuffer.length > 0) {
 				bufferRef.current.push(...cycleBuffer);
-				if (postsRef.current.length === 0) {
-					// Feed is empty (posts cache expired): flush directly without
-					// requiring the user to click "N new".
-					pendingRef.current.push(...bufferRef.current.splice(0));
-					setStagedCount(0);
-					flush();
-				} else {
-					setStagedCount(bufferRef.current.length);
-				}
+				setStagedCount(bufferRef.current.length);
 			}
 		} finally {
 			pollingRef.current = false;
 			setPollProgress(null);
 			setLastPollTime(Date.now());
 		}
-	}, [accessToken, flush]);
+	}, [accessToken]);
 
 	const triggerPoll = useCallback(() => {
 		poll();
@@ -267,9 +259,6 @@ export function useSubscribedFeed(
 					if (maxLastPolledAt > 0) setLastPollTime(maxLastPolledAt);
 					loadingRef.current = false;
 					setLoading(false);
-					// Posts cache expired but cursors are valid: auto-poll to restore
-					// recent posts using sinceId without full re-initialization.
-					if (postsRef.current.length === 0) poll();
 					return;
 				}
 			}
