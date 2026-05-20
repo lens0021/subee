@@ -1,3 +1,5 @@
+import { kvDel, kvGet, kvSet } from "../storage/kv";
+
 export interface AuthState {
 	accessToken: string;
 	instanceUrl: string;
@@ -16,45 +18,75 @@ const KEYS = {
 	scopeVersion: (instance: string) => `subee:scopeVersion:${instance}`,
 };
 
-export function getAuth(): AuthState | null {
-	const accessToken = localStorage.getItem(KEYS.accessToken);
-	const instanceUrl = localStorage.getItem(KEYS.instanceUrl);
+let migration: Promise<void> | null = null;
+function migrateFromLocalStorage(): Promise<void> {
+	if (migration) return migration;
+	migration = (async () => {
+		if (typeof localStorage === "undefined") return;
+		const keys: string[] = [];
+		for (let i = 0; i < localStorage.length; i++) {
+			const k = localStorage.key(i);
+			if (!k) continue;
+			if (
+				k === KEYS.accessToken ||
+				k === KEYS.instanceUrl ||
+				k.startsWith("subee:clientId:") ||
+				k.startsWith("subee:clientSecret:") ||
+				k.startsWith("subee:scopeVersion:")
+			) {
+				keys.push(k);
+			}
+		}
+		for (const k of keys) {
+			const v = localStorage.getItem(k);
+			if (v !== null) {
+				await kvSet(k, v);
+				localStorage.removeItem(k);
+			}
+		}
+	})();
+	return migration;
+}
+
+export async function loadAuth(): Promise<AuthState | null> {
+	await migrateFromLocalStorage();
+	const accessToken = await kvGet<string>(KEYS.accessToken);
+	const instanceUrl = await kvGet<string>(KEYS.instanceUrl);
 	if (!accessToken || !instanceUrl) return null;
 	return { accessToken, instanceUrl };
 }
 
-export function saveAuth(state: AuthState): void {
-	localStorage.setItem(KEYS.accessToken, state.accessToken);
-	localStorage.setItem(KEYS.instanceUrl, state.instanceUrl);
+export async function saveAuth(state: AuthState): Promise<void> {
+	await kvSet(KEYS.accessToken, state.accessToken);
+	await kvSet(KEYS.instanceUrl, state.instanceUrl);
 }
 
-export function clearAuth(): void {
-	localStorage.removeItem(KEYS.accessToken);
-	localStorage.removeItem(KEYS.instanceUrl);
+export async function clearAuth(): Promise<void> {
+	await kvDel(KEYS.accessToken);
+	await kvDel(KEYS.instanceUrl);
 }
 
-export function getClientCredentials(
+export async function getClientCredentials(
 	instanceUrl: string,
 	scopeVersion: string,
-): ClientCredentials | null {
-	if (localStorage.getItem(KEYS.scopeVersion(instanceUrl)) !== scopeVersion) {
+): Promise<ClientCredentials | null> {
+	await migrateFromLocalStorage();
+	const storedVersion = await kvGet<string>(KEYS.scopeVersion(instanceUrl));
+	if (storedVersion !== scopeVersion) {
 		return null;
 	}
-	const clientId = localStorage.getItem(KEYS.clientId(instanceUrl));
-	const clientSecret = localStorage.getItem(KEYS.clientSecret(instanceUrl));
+	const clientId = await kvGet<string>(KEYS.clientId(instanceUrl));
+	const clientSecret = await kvGet<string>(KEYS.clientSecret(instanceUrl));
 	if (!clientId || !clientSecret) return null;
 	return { clientId, clientSecret };
 }
 
-export function saveClientCredentials(
+export async function saveClientCredentials(
 	instanceUrl: string,
 	credentials: ClientCredentials,
 	scopeVersion: string,
-): void {
-	localStorage.setItem(KEYS.clientId(instanceUrl), credentials.clientId);
-	localStorage.setItem(
-		KEYS.clientSecret(instanceUrl),
-		credentials.clientSecret,
-	);
-	localStorage.setItem(KEYS.scopeVersion(instanceUrl), scopeVersion);
+): Promise<void> {
+	await kvSet(KEYS.clientId(instanceUrl), credentials.clientId);
+	await kvSet(KEYS.clientSecret(instanceUrl), credentials.clientSecret);
+	await kvSet(KEYS.scopeVersion(instanceUrl), scopeVersion);
 }
