@@ -32,7 +32,8 @@ export function ImportOverlay({ onConfirm, onCancel }: ImportOverlayProps) {
 					<button
 						type="button"
 						onClick={() => onConfirm(importText)}
-						className="px-4 py-2 text-sm rounded bg-blue-500 text-white hover:bg-blue-600"
+						disabled={!importText.trim()}
+						className="px-4 py-2 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
 					>
 						Import
 					</button>
