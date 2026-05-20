@@ -8,8 +8,8 @@ import {
 import {
 	type AuthState,
 	clearAuth,
-	getAuth,
 	getClientCredentials,
+	loadAuth,
 	saveAuth,
 	saveClientCredentials,
 } from "../store/auth";
@@ -23,69 +23,82 @@ export function useAuth() {
 
 	// On mount: check for OAuth callback code or existing token
 	useEffect(() => {
-		const params = new URLSearchParams(window.location.search);
-		const code = params.get("code");
+		let cancelled = false;
+		(async () => {
+			const params = new URLSearchParams(window.location.search);
+			const code = params.get("code");
 
-		if (code) {
-			// Remove code from URL without reload
-			const cleanUrl = window.location.pathname;
-			window.history.replaceState({}, "", cleanUrl);
+			if (code) {
+				// Remove code from URL without reload
+				const cleanUrl = window.location.pathname;
+				window.history.replaceState({}, "", cleanUrl);
 
-			// We need the instance URL stored before redirect
-			const pendingInstance = sessionStorage.getItem("subee:pendingInstance");
-			if (!pendingInstance) {
-				setError("OAuth callback received but instance URL is missing.");
-				setStatus("unauthenticated");
-				return;
-			}
-			sessionStorage.removeItem("subee:pendingInstance");
+				const pendingInstance = sessionStorage.getItem("subee:pendingInstance");
+				if (!pendingInstance) {
+					if (cancelled) return;
+					setError("OAuth callback received but instance URL is missing.");
+					setStatus("unauthenticated");
+					return;
+				}
+				sessionStorage.removeItem("subee:pendingInstance");
 
-			const creds = getClientCredentials(pendingInstance, OAUTH_SCOPE_VERSION);
-			if (!creds) {
-				setError("OAuth callback received but client credentials are missing.");
-				setStatus("unauthenticated");
-				return;
-			}
+				const creds = await getClientCredentials(
+					pendingInstance,
+					OAUTH_SCOPE_VERSION,
+				);
+				if (!creds) {
+					if (cancelled) return;
+					setError(
+						"OAuth callback received but client credentials are missing.",
+					);
+					setStatus("unauthenticated");
+					return;
+				}
 
-			exchangeCodeForToken(
-				pendingInstance,
-				code,
-				creds.clientId,
-				creds.clientSecret,
-			)
-				.then((accessToken) => {
+				try {
+					const accessToken = await exchangeCodeForToken(
+						pendingInstance,
+						code,
+						creds.clientId,
+						creds.clientSecret,
+					);
 					const state: AuthState = {
 						accessToken,
 						instanceUrl: pendingInstance,
 					};
-					saveAuth(state);
+					await saveAuth(state);
+					if (cancelled) return;
 					setAuth(state);
 					setStatus("authenticated");
-				})
-				.catch((e) => {
+				} catch (e) {
+					if (cancelled) return;
 					setError(String(e));
 					setStatus("unauthenticated");
-				});
-			return;
-		}
+				}
+				return;
+			}
 
-		// Check existing token
-		const existing = getAuth();
-		if (existing) {
-			setAuth(existing);
-			setStatus("authenticated");
-		} else {
-			setStatus("unauthenticated");
-		}
+			const existing = await loadAuth();
+			if (cancelled) return;
+			if (existing) {
+				setAuth(existing);
+				setStatus("authenticated");
+			} else {
+				setStatus("unauthenticated");
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
 	}, []);
 
 	const login = useCallback(async (instanceUrl: string) => {
 		setError(null);
 		try {
-			let creds = getClientCredentials(instanceUrl, OAUTH_SCOPE_VERSION);
+			let creds = await getClientCredentials(instanceUrl, OAUTH_SCOPE_VERSION);
 			if (!creds) {
 				creds = await registerApp(instanceUrl);
-				saveClientCredentials(instanceUrl, creds, OAUTH_SCOPE_VERSION);
+				await saveClientCredentials(instanceUrl, creds, OAUTH_SCOPE_VERSION);
 			}
 			sessionStorage.setItem("subee:pendingInstance", instanceUrl);
 			window.location.href = buildAuthorizationUrl(instanceUrl, creds.clientId);
@@ -94,8 +107,8 @@ export function useAuth() {
 		}
 	}, []);
 
-	const logout = useCallback(() => {
-		clearAuth();
+	const logout = useCallback(async () => {
+		await clearAuth();
 		setAuth(null);
 		setStatus("unauthenticated");
 	}, []);
