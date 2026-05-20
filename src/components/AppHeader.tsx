@@ -93,6 +93,8 @@ export function AppHeader({
 						<button
 							type="button"
 							onClick={() => setShowMenu((v) => !v)}
+							title="Settings"
+							aria-label="Settings"
 							className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
 						>
 							<FontAwesomeIcon icon={faCog} />
