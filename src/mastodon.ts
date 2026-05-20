@@ -136,6 +136,7 @@ export async function exchangeCodeForToken(
 
 const ACCOUNT_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+/** @deprecated Use `kvGet` from `./storage/kv` (IndexedDB-backed, SW-accessible). */
 export function lsGet<T>(key: string, ttl: number): T | null {
 	try {
 		const raw = localStorage.getItem(key);
@@ -151,6 +152,7 @@ export function lsGet<T>(key: string, ttl: number): T | null {
 	}
 }
 
+/** @deprecated Use `kvSet` from `./storage/kv` (IndexedDB-backed, SW-accessible). */
 export function lsSet(key: string, value: unknown): void {
 	try {
 		localStorage.setItem(key, JSON.stringify({ v: value, t: Date.now() }));
