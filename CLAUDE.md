@@ -5,7 +5,7 @@
 
 ## 페이지 새로고침 흐름
 
-1. 커서 캐시(`subee:cursors:{instanceUrl}`, TTL 7일)와 게시물 캐시(`subee:posts:{instanceUrl}`, TTL 24h)를 localStorage에서 복원.
+1. 커서 캐시(`subee:cursors:{instanceUrl}`, TTL 7일)와 게시물 캐시(`subee:posts:{instanceUrl}`, TTL 7일)를 localStorage에서 복원.
 2. 캐시가 유효하고 모든 구독 handle이 커서 캐시에 포함되면 → 즉시 피드 표시 (API 호출 없음).
 3. 캐시가 없거나 새 handle이 있으면 → 계정 resolve(`initCursors`) 후 초기 게시물 fetch(`fetchMore`).
 4. 페이지 새로고침 후 자동 폴링 없음 — 사용자가 직접 Refresh 버튼으로 폴링 시작.
