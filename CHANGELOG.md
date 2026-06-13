@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2](https://github.com/lens0021/subee/compare/v0.7.1...v0.7.2) (2026-06-13)
+
+
+### Bug Fixes
+
+* attach scroll-save listeners once the feed is ready ([9fdba72](https://github.com/lens0021/subee/commit/9fdba72b23787f49103095f32f58ce4547a80364))
+
 ## [0.7.1](https://github.com/lens0021/subee/compare/v0.7.0...v0.7.1) (2026-06-13)
 
 
