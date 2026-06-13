@@ -114,7 +114,7 @@ test("shows the Refresh button even at the top of the feed", async ({
 	// At the top (no scrolling), the floating Refresh prompt is still visible.
 	const container = page.locator(CONTAINER);
 	expect(await container.evaluate((el) => el.scrollTop)).toBe(0);
-	await expect(page.getByRole("button", { name: /Refresh/ })).toBeVisible();
+	await expect(container.getByTestId("fab-refresh")).toBeVisible();
 });
 
 test("starts at the top when nothing was scrolled", async ({ page }) => {

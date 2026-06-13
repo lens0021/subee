@@ -1,7 +1,10 @@
 import type { RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { AccountStatusGrid } from "../components/AccountStatusGrid";
-import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
+import {
+	type DividerState,
+	FloatingRefreshButton,
+} from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
 import { useSubscribedFeed } from "../hooks/useSubscribedFeed";
 import type { ScrollAnchor } from "../types";
@@ -52,17 +55,31 @@ export function SubscribedPage({
 		);
 	}, [dividerPostId]);
 
-	// Show the per-account status grid only at the top of the feed, while a load
-	// (initial build or poll) has any account still working. Hidden once
-	// scrolled down so it never covers what the user is reading.
+	// Track scroll position for two affordances:
+	// - the status grid shows only at the very top (so it never covers reading);
+	// - the "New posts" divider's position relative to the viewport drives the
+	//   refresh/jump affordances (see FloatingRefreshButton / the inline button).
 	const [atTop, setAtTop] = useState(true);
+	const [dividerState, setDividerState] = useState<DividerState>("none");
 	useEffect(() => {
 		const el = scrollContainerRef.current;
 		if (!el) return;
-		const onScroll = () => setAtTop(el.scrollTop < 4);
+		const onScroll = () => {
+			setAtTop(el.scrollTop < 4);
+			const divider = dividerRef.current;
+			if (!dividerPostId || !divider) {
+				setDividerState("none");
+				return;
+			}
+			const top = el.scrollTop;
+			const bottom = top + el.clientHeight;
+			const d = divider.offsetTop;
+			setDividerState(d < top ? "above" : d > bottom ? "below" : "visible");
+		};
+		onScroll();
 		el.addEventListener("scroll", onScroll, { passive: true });
 		return () => el.removeEventListener("scroll", onScroll);
-	}, [scrollContainerRef]);
+	}, [scrollContainerRef, dividerPostId]);
 	const showGrid =
 		atTop && [...accountStatuses.values()].some((s) => s !== "done");
 
@@ -99,6 +116,13 @@ export function SubscribedPage({
 				stagedCount={stagedCount}
 				pollProgress={pollProgress}
 				lastPollTime={lastPollTime}
+				dividerState={dividerState}
+				onJump={() =>
+					dividerRef.current?.scrollIntoView({
+						behavior: "smooth",
+						block: "center",
+					})
+				}
 			/>
 			{showGrid && <AccountStatusGrid statuses={accountStatuses} />}
 			<PostList
@@ -116,6 +140,7 @@ export function SubscribedPage({
 				onDividerRef={(el) => {
 					dividerRef.current = el;
 				}}
+				onDividerRefresh={triggerPoll}
 			/>
 		</>
 	);
