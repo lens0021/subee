@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import {
 	addSubscription,
-	getSubscriptions,
+	migrateSubscriptions,
+	normalizeHandle,
 	removeSubscription,
 	saveSubscriptions,
 } from "../store/subscriptions";
@@ -11,7 +12,8 @@ export function useSubscriptions() {
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
-		getSubscriptions().then((s) => {
+		// Repairs any handles previously saved in a bad format (e.g. a URL).
+		migrateSubscriptions().then((s) => {
 			setHandles(s);
 			setLoading(false);
 		});
@@ -28,10 +30,7 @@ export function useSubscriptions() {
 	}, []);
 
 	const isSubscribed = useCallback(
-		(handle: string) => {
-			const normalized = handle.startsWith("@") ? handle : `@${handle}`;
-			return handles.has(normalized);
-		},
+		(handle: string) => handles.has(normalizeHandle(handle)),
 		[handles],
 	);
 

@@ -26,7 +26,7 @@ export function AddAccountOverlay({
 					onChange={(e) => setHandle(e.target.value)}
 					onKeyDown={(e) => e.key === "Enter" && submit()}
 					className="w-full text-sm border rounded p-2 dark:bg-gray-700 dark:border-gray-600 font-mono"
-					placeholder="@user@instance.social"
+					placeholder="@user@instance.social or profile URL"
 					// biome-ignore lint/a11y/noAutofocus: intentional focus for overlay
 					autoFocus
 				/>

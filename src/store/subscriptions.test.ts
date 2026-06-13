@@ -13,6 +13,48 @@ describe("normalizeHandle", () => {
 			"@user@mastodon.social",
 		);
 	});
+
+	it("converts a Mastodon profile URL to a handle", () => {
+		expect(normalizeHandle("https://uri.life/@Feel")).toBe("@Feel@uri.life");
+	});
+
+	it("uses the remote host from an @user@host profile URL", () => {
+		expect(normalizeHandle("https://uri.life/@Feel@other.social")).toBe(
+			"@Feel@other.social",
+		);
+	});
+
+	it("converts an ActivityPub actor URL to a handle", () => {
+		expect(normalizeHandle("https://uri.life/users/Feel")).toBe(
+			"@Feel@uri.life",
+		);
+	});
+
+	it("repairs a value mis-stored as an @-prefixed URL", () => {
+		expect(normalizeHandle("@https://uri.life/@Feel")).toBe("@Feel@uri.life");
+	});
+
+	it("ignores trailing path and query in a profile URL", () => {
+		expect(normalizeHandle("https://uri.life/@Feel/123?x=1")).toBe(
+			"@Feel@uri.life",
+		);
+	});
+
+	it("trims surrounding whitespace", () => {
+		expect(normalizeHandle("  user@mastodon.social  ")).toBe(
+			"@user@mastodon.social",
+		);
+	});
+});
+
+describe("importHandles with URLs", () => {
+	it("normalizes profile URLs on import", () => {
+		const imported = importHandles(
+			"https://uri.life/@Feel\n@bob@fosstodon.org",
+		);
+		expect(imported.has("@Feel@uri.life")).toBe(true);
+		expect(imported.has("@bob@fosstodon.org")).toBe(true);
+	});
 });
 
 describe("exportHandles / importHandles", () => {
