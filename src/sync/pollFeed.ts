@@ -17,6 +17,10 @@ export interface PollFeedOptions {
 	instanceUrl: string;
 	accessToken: string;
 	onProgress?: (done: number, total: number) => void;
+	onAccountStatus?: (
+		handle: string,
+		status: "loading" | "done" | "failed",
+	) => void;
 }
 
 export interface PollFeedResult {
@@ -28,6 +32,7 @@ export async function pollFeed({
 	instanceUrl,
 	accessToken,
 	onProgress,
+	onAccountStatus,
 }: PollFeedOptions): Promise<PollFeedResult> {
 	const cached = await loadCursorCache(instanceUrl);
 	if (!cached) {
@@ -51,6 +56,7 @@ export async function pollFeed({
 
 	await concurrent(
 		cursors.map((cursor) => async () => {
+			onAccountStatus?.(cursor.handle, "loading");
 			try {
 				const results = await fetchAccountStatuses(
 					cursor.instanceUrl,
@@ -64,8 +70,10 @@ export async function pollFeed({
 					lastPolledAt: Date.now(),
 				});
 				if (results.length > 0) newPosts.push(...results);
+				onAccountStatus?.(cursor.handle, "done");
 			} catch {
 				// silently ignore poll errors
+				onAccountStatus?.(cursor.handle, "failed");
 			}
 			done++;
 			onProgress?.(done, cursors.length);

@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AccountStatusGrid } from "../components/AccountStatusGrid";
 import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
@@ -28,7 +28,6 @@ export function SubscribedPage({
 		posts,
 		loading,
 		error,
-		progress,
 		fetchMore,
 		flushBuffer,
 		triggerPoll,
@@ -51,9 +50,19 @@ export function SubscribedPage({
 		);
 	}, [dividerPostId]);
 
-	// Show status grid only while any account is still loading or has failed.
-	// Hide once all are done (includes after cache restore).
-	const showGrid = [...accountStatuses.values()].some((s) => s !== "done");
+	// Show the per-account status grid only at the top of the feed, while a load
+	// (initial build or poll) has any account still working. Hidden once
+	// scrolled down so it never covers what the user is reading.
+	const [atTop, setAtTop] = useState(true);
+	useEffect(() => {
+		const el = scrollContainerRef.current;
+		if (!el) return;
+		const onScroll = () => setAtTop(el.scrollTop < 4);
+		el.addEventListener("scroll", onScroll, { passive: true });
+		return () => el.removeEventListener("scroll", onScroll);
+	}, [scrollContainerRef]);
+	const showGrid =
+		atTop && [...accountStatuses.values()].some((s) => s !== "done");
 
 	// Initial load is driven by useSubscribedFeed (auto-loads uninitialized
 	// accounts, including after importing subscriptions).

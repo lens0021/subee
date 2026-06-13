@@ -166,6 +166,8 @@ export function useSubscribedFeed(
 				instanceUrl,
 				accessToken,
 				onProgress: (done, total) => setPollProgress({ done, total }),
+				onAccountStatus: (handle, status) =>
+					setAccountStatuses((prev) => new Map(prev).set(handle, status)),
 			});
 			// Refresh in-memory cursors map so callers (initCursors retries, etc.)
 			// see the updated sinceId/lastPolledAt persisted by pollFeed.
