@@ -4,6 +4,9 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** Outcome of a worker poll: posts newly added this run, and the total queued. */
+data class PollResult(val added: Int, val pendingTotal: Int)
+
 /**
  * State shared between the WebView app and the background worker.
  *
@@ -42,14 +45,15 @@ class SyncStore(context: Context) {
     /**
      * Advance cursors in the saved state (so the next worker run does not
      * refetch), queue the cursor updates and posts for the web side, and
-     * return how many posts were newly added.
+     * report posts added this run plus the total now pending (so callers
+     * don't have to re-read and re-parse the queue).
      */
     fun recordPollResults(
         cursorUpdates: Map<String, JSONObject>,
         posts: List<JSONObject>,
-    ): Int =
+    ): PollResult =
         synchronized(LOCK) {
-            val state = loadState() ?: return 0
+            val state = loadState() ?: return PollResult(0, 0)
             val cursors = state.optJSONArray("cursors") ?: JSONArray()
             for (i in 0 until cursors.length()) {
                 val cursor = cursors.optJSONObject(i) ?: continue
@@ -85,13 +89,7 @@ class SyncStore(context: Context) {
                 .putString(KEY_PENDING_CURSORS, pendingCursors.toString())
                 .putString(KEY_PENDING_POSTS, JSONArray(capped).toString())
                 .apply()
-            added
-        }
-
-    /** Number of posts queued for the web side but not yet imported. */
-    fun pendingPostCount(): Int =
-        synchronized(LOCK) {
-            JSONArray(prefs.getString(KEY_PENDING_POSTS, "[]") ?: "[]").length()
+            PollResult(added, capped.size)
         }
 
     /** Return pending results as JSON for the web side and clear them. */

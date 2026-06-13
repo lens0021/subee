@@ -87,11 +87,11 @@ class FeedSyncWorker(
             }
 
             if (updates.isNotEmpty()) {
-                val added = store.recordPollResults(updates, fetched)
-                if (added > 0) {
+                val result = store.recordPollResults(updates, fetched)
+                if (result.added > 0) {
                     // Show the cumulative number of posts waiting to be viewed,
                     // updating the single existing notification in place.
-                    Notifications.showNewPosts(applicationContext, store.pendingPostCount())
+                    Notifications.showNewPosts(applicationContext, result.pendingTotal)
                 }
             }
             Result.success()
