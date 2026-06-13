@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/lens0021/subee/compare/v0.2.2...v0.2.3) (2026-06-13)
+
+
+### Miscellaneous Chores
+
+* cut 0.2.3 to publish fixed-keystore-signed APK ([a630e69](https://github.com/lens0021/subee/commit/a630e69b3dc3455c8f3dc684cef2bf985ae6d830))
+
 ## [0.2.2](https://github.com/lens0021/subee/compare/v0.2.1...v0.2.2) (2026-06-13)
 
 
