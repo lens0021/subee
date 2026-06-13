@@ -193,6 +193,7 @@ export function useSubscribedFeed(
 		setLoading(true);
 		setError(null);
 
+		let didInit = false;
 		if (!initializedRef.current) {
 			// Try to restore cursors from cache (IDB; migrates legacy localStorage)
 			const cachedCursors = await loadCursorCache(instanceUrl);
@@ -229,7 +230,15 @@ export function useSubscribedFeed(
 				}
 			}
 			await initCursors();
+			didInit = true;
 		}
+
+		// On the initial build into a feed that already shows posts, stage the
+		// fetched posts in the buffer ("N new") instead of inserting them while
+		// the user may be reading. An empty feed has nothing to disrupt, so it
+		// fills directly; pagination (older posts) also appends directly.
+		const stageToBuffer = didInit && postsRef.current.length > 0;
+		const collected: mastodon.v1.Status[] = [];
 
 		try {
 			const pending = [...cursorsRef.current.values()].filter((c) => !c.done);
@@ -254,7 +263,8 @@ export function useSubscribedFeed(
 								maxId: results[results.length - 1].id,
 								sinceId: cursor.sinceId ?? results[0].id,
 							});
-							pendingRef.current.push(...results);
+							if (stageToBuffer) collected.push(...results);
+							else pendingRef.current.push(...results);
 						} else {
 							cursorsRef.current.set(cursor.handle, { ...cursor, done: true });
 						}
@@ -272,12 +282,24 @@ export function useSubscribedFeed(
 						total: pending.length,
 						phase: "loading",
 					});
-					if (completed % FLUSH_EVERY === 0) flush();
+					if (!stageToBuffer && completed % FLUSH_EVERY === 0) flush();
 				}),
 				CONCURRENCY,
 			);
 
-			flush(); // final flush for any remainder
+			if (stageToBuffer) {
+				const known = new Set([
+					...postsRef.current.map((p) => p.id),
+					...bufferRef.current.map((p) => p.id),
+				]);
+				const fresh = collected.filter((p) => !known.has(p.id));
+				if (fresh.length > 0) {
+					bufferRef.current.push(...fresh);
+					setStagedCount(bufferRef.current.length);
+				}
+			} else {
+				flush(); // final flush for any remainder
+			}
 		} catch (e) {
 			setError(String(e));
 		} finally {
@@ -287,7 +309,7 @@ export function useSubscribedFeed(
 			setLoading(false);
 			setProgress(null);
 		}
-	}, [handles, instanceUrl, accessToken, initCursors, flush, poll]);
+	}, [handles, instanceUrl, accessToken, initCursors, flush]);
 
 	// Load accounts that have never been fetched (e.g. importing subscriptions
 	// into an empty feed). Only runs while uninitialized, so subscribing a
