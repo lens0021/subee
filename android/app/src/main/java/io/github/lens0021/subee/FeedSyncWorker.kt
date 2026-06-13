@@ -4,11 +4,6 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -36,54 +31,38 @@ class FeedSyncWorker(
                 return@withContext Result.success()
             }
 
-            // Poll accounts concurrently (bounded) instead of one at a time, so
-            // the worker finishes sooner and holds the wakelock for less time.
-            val polled =
-                coroutineScope {
-                    val gate = Semaphore(POLL_CONCURRENCY)
-                    (0 until cursors.length())
-                        .mapNotNull { i -> cursors.optJSONObject(i) }
-                        .map { cursor ->
-                            async {
-                                val handle = cursor.optString("handle")
-                                val sinceId = cursor.optString("sinceId")
-                                val accountId = cursor.optString("accountId")
-                                val instanceUrl = cursor.optString("instanceUrl").trimEnd('/')
-                                if (handle.isEmpty() || accountId.isEmpty() || instanceUrl.isEmpty()) {
-                                    return@async null
-                                }
-                                // Accounts without a sinceId have never been loaded
-                                // in-app; leave them to the foreground initial fetch.
-                                if (sinceId.isEmpty() || sinceId == "null") return@async null
-                                gate.withPermit {
-                                    try {
-                                        val posts =
-                                            fetchStatuses(instanceUrl, accountId, sinceId, accessToken)
-                                        val list = ArrayList<JSONObject>(posts.length())
-                                        for (j in 0 until posts.length()) list.add(posts.getJSONObject(j))
-                                        val update =
-                                            JSONObject()
-                                                .put("lastPolledAt", System.currentTimeMillis())
-                                                .put(
-                                                    "sinceId",
-                                                    if (list.isNotEmpty()) list[0].getString("id") else sinceId,
-                                                )
-                                        handle to (update to list)
-                                    } catch (_: Exception) {
-                                        // skip this account until the next run
-                                        null
-                                    }
-                                }
-                            }
-                        }.awaitAll()
-                }
-
+            // Poll accounts one at a time. All requests go to the user's home
+            // instance, so this avoids bursts that could trip its rate limit, and
+            // keeps the phone's peak network/CPU/memory low. Background timing
+            // (every ~4h) makes the longer runtime irrelevant.
             val updates = HashMap<String, JSONObject>()
             val fetched = ArrayList<JSONObject>()
-            for (entry in polled) {
-                if (entry == null) continue
-                updates[entry.first] = entry.second.first
-                fetched.addAll(entry.second.second)
+            for (i in 0 until cursors.length()) {
+                val cursor = cursors.optJSONObject(i) ?: continue
+                val handle = cursor.optString("handle")
+                val sinceId = cursor.optString("sinceId")
+                val accountId = cursor.optString("accountId")
+                val instanceUrl = cursor.optString("instanceUrl").trimEnd('/')
+                if (handle.isEmpty() || accountId.isEmpty() || instanceUrl.isEmpty()) continue
+                // Accounts without a sinceId have never been loaded in-app;
+                // leave them to the foreground initial fetch.
+                if (sinceId.isEmpty() || sinceId == "null") continue
+                try {
+                    val posts = fetchStatuses(instanceUrl, accountId, sinceId, accessToken)
+                    val update =
+                        JSONObject()
+                            .put("lastPolledAt", System.currentTimeMillis())
+                            .put(
+                                "sinceId",
+                                if (posts.length() > 0) posts.getJSONObject(0).getString("id") else sinceId,
+                            )
+                    for (j in 0 until posts.length()) {
+                        fetched.add(posts.getJSONObject(j))
+                    }
+                    updates[handle] = update
+                } catch (_: Exception) {
+                    // skip this account until the next run
+                }
             }
 
             if (updates.isNotEmpty()) {
@@ -121,7 +100,5 @@ class FeedSyncWorker(
     companion object {
         private const val PAGE_SIZE = 20
         private const val TIMEOUT_MS = 15_000
-        // Mirrors the web pollFeed concurrency; bounds simultaneous requests.
-        private const val POLL_CONCURRENCY = 4
     }
 }
