@@ -88,6 +88,12 @@ class SyncStore(context: Context) {
             added
         }
 
+    /** Number of posts queued for the web side but not yet imported. */
+    fun pendingPostCount(): Int =
+        synchronized(LOCK) {
+            JSONArray(prefs.getString(KEY_PENDING_POSTS, "[]") ?: "[]").length()
+        }
+
     /** Return pending results as JSON for the web side and clear them. */
     fun consumeResults(): String =
         synchronized(LOCK) {

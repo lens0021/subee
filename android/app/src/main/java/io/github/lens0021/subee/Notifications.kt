@@ -25,11 +25,14 @@ object Notifications {
         }
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        // IMPORTANCE_LOW: no sound and no heads-up by default. The single
+        // notification (fixed id) is updated in place as more posts arrive;
+        // the user can further silence/minimize it in Android settings.
         manager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
                 context.getString(R.string.notification_channel_name),
-                NotificationManager.IMPORTANCE_DEFAULT,
+                NotificationManager.IMPORTANCE_LOW,
             ),
         )
 
@@ -54,7 +57,15 @@ object Notifications {
                 )
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true)
+                // Don't re-alert when the notification is refreshed with an
+                // updated count — only the first appearance may alert.
+                .setOnlyAlertOnce(true)
                 .build()
         manager.notify(NOTIFICATION_ID, notification)
+    }
+
+    fun cancel(context: Context) {
+        (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+            .cancel(NOTIFICATION_ID)
     }
 }

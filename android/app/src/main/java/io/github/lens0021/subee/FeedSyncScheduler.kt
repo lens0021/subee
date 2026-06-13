@@ -10,7 +10,9 @@ import java.util.concurrent.TimeUnit
 
 object FeedSyncScheduler {
     private const val WORK_NAME = "subee-feed-sync"
-    private const val INTERVAL_HOURS = 1L
+    // Target minimum interval; WorkManager defers actual runs based on Doze /
+    // battery, so real spacing is often longer.
+    private const val INTERVAL_HOURS = 4L
 
     fun schedule(context: Context) {
         val request =

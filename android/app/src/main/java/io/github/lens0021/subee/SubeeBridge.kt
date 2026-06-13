@@ -35,5 +35,10 @@ class SubeeBridge(private val activity: MainActivity) {
     fun getBackgroundSync(): Boolean = store.backgroundSyncEnabled
 
     @JavascriptInterface
-    fun consumeSyncResults(): String = store.consumeResults()
+    fun consumeSyncResults(): String {
+        // The user is now in the app viewing posts; clear the pending-posts
+        // notification so it reflects only unseen content.
+        Notifications.cancel(activity.applicationContext)
+        return store.consumeResults()
+    }
 }
