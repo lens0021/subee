@@ -10,7 +10,10 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.webkit.ServiceWorkerClientCompat
+import androidx.webkit.ServiceWorkerControllerCompat
 import androidx.webkit.WebViewAssetLoader
+import androidx.webkit.WebViewFeature
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
@@ -33,6 +36,20 @@ class MainActivity : Activity() {
             WebViewAssetLoader.Builder()
                 .addPathHandler("/", WebAppPathHandler(this))
                 .build()
+
+        // Requests made by (or for pages controlled by) the PWA service worker
+        // bypass WebViewClient.shouldInterceptRequest, so the appassets domain
+        // would hit real DNS and fail with ERR_NAME_NOT_RESOLVED. Route them
+        // through the same asset loader.
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BASIC_USAGE)) {
+            ServiceWorkerControllerCompat.getInstance().setServiceWorkerClient(
+                object : ServiceWorkerClientCompat() {
+                    override fun shouldInterceptRequest(
+                        request: WebResourceRequest,
+                    ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
+                },
+            )
+        }
 
         webView.webViewClient =
             object : WebViewClient() {
