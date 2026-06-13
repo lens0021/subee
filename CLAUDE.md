@@ -8,7 +8,8 @@
 1. 커서 캐시(`subee:cursors:{instanceUrl}`, TTL 7일)와 게시물 캐시(`subee:posts:{instanceUrl}`, TTL 7일)를 localStorage에서 복원.
 2. 캐시가 유효하고 모든 구독 handle이 커서 캐시에 포함되면 → 즉시 피드 표시 (API 호출 없음).
 3. 캐시가 없거나 새 handle이 있으면 → 계정 resolve(`initCursors`) 후 초기 게시물 fetch(`fetchMore`).
-4. 페이지 새로고침 후 자동 폴링 없음 — 사용자가 직접 Refresh 버튼으로 폴링 시작.
+4. 캐시에서 복원한 직후, 마지막 폴링이 `AUTO_POLL_STALE_MS`(5분)보다 오래됐으면 자동으로 1회 폴링해 새 글을 버퍼("N new")에 적재. 자고 일어난 뒤처럼 오래 닫아둔 경우 앱을 열면 "N new"가 떠 있음. 빠르게 다시 연 경우(5분 이내)엔 폴링하지 않아 인스턴스 부담을 피함. 이후 지속 폴링은 없음 — 추가 갱신은 사용자가 직접 Refresh.
+5. 앱을 백그라운드에서 다시 포그라운드로 가져올 때(`visibilitychange`)도 같은 staleness 조건으로 1회 폴링.
 
 ## 피드 새로고침 흐름
 

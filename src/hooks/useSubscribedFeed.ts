@@ -21,6 +21,10 @@ const PAGE_SIZE = 20;
 const CONCURRENCY = 3;
 const FLUSH_EVERY = 20; // update UI after every N accounts complete
 const MAX_CACHED_POSTS = 200;
+// On app open / foreground-resume, poll once if the last poll is older than
+// this, staging new posts as "N new". Avoids re-polling on quick reopens so we
+// stay gentle on the home instance (one round, the same as a manual Refresh).
+const AUTO_POLL_STALE_MS = 5 * 60_000;
 
 export type { AccountCursor };
 
@@ -228,6 +232,10 @@ export function useSubscribedFeed(
 					if (maxLastPolledAt > 0) setLastPollTime(maxLastPolledAt);
 					loadingRef.current = false;
 					setLoading(false);
+					// Restoring a cached feed means the posts may be stale (e.g. the
+					// app was reopened after sleeping). Poll once so new posts land in
+					// the buffer as "N new", without starting continuous polling.
+					if (Date.now() - maxLastPolledAt > AUTO_POLL_STALE_MS) void poll();
 					return;
 				}
 			}
@@ -311,7 +319,20 @@ export function useSubscribedFeed(
 			setLoading(false);
 			setProgress(null);
 		}
-	}, [handles, instanceUrl, accessToken, initCursors, flush]);
+	}, [handles, instanceUrl, accessToken, initCursors, flush, poll]);
+
+	// Bringing the app back to the foreground after a while (without a cold
+	// start) should also surface new posts as "N new". Same staleness gate keeps
+	// it gentle, and poll()'s own guards prevent overlapping rounds.
+	useEffect(() => {
+		const onVisible = () => {
+			if (document.visibilityState !== "visible") return;
+			if (!initializedRef.current) return;
+			if (Date.now() - (lastPollTime ?? 0) > AUTO_POLL_STALE_MS) poll();
+		};
+		document.addEventListener("visibilitychange", onVisible);
+		return () => document.removeEventListener("visibilitychange", onVisible);
+	}, [lastPollTime, poll]);
 
 	// Load accounts that have never been fetched (e.g. importing subscriptions
 	// into an empty feed). Only runs while uninitialized, so subscribing a
