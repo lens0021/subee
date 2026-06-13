@@ -2,8 +2,8 @@ import type { mastodon } from "masto";
 import type { ReactNode, RefObject } from "react";
 import { Component, useEffect } from "react";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
-import { formatHandle } from "../mastodon";
 import type { FeedProgress } from "../hooks/useSubscribedFeed";
+import { formatHandle } from "../mastodon";
 import { PostCard } from "./PostCard";
 
 class PostCardErrorBoundary extends Component<
@@ -135,6 +135,7 @@ export function PostList({
 							</div>
 						)}
 						<div
+							data-post-id={status.id}
 							data-subscribed={subscribed || undefined}
 							style={{
 								contentVisibility: "auto",

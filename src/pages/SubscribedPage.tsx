@@ -4,6 +4,8 @@ import { AccountStatusGrid } from "../components/AccountStatusGrid";
 import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
 import { useSubscribedFeed } from "../hooks/useSubscribedFeed";
+import type { ScrollAnchor } from "../types";
+import { restoreScrollAnchor } from "./restoreScrollAnchor";
 
 interface SubscribedPageProps {
 	handles: Set<string>;
@@ -11,7 +13,7 @@ interface SubscribedPageProps {
 	accessToken: string;
 	onSubscribe: (handle: string) => void;
 	isSubscribed: (handle: string) => boolean;
-	initialScrollY: number;
+	initialAnchor: ScrollAnchor;
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
@@ -21,7 +23,7 @@ export function SubscribedPage({
 	accessToken,
 	onSubscribe,
 	isSubscribed,
-	initialScrollY,
+	initialAnchor,
 	scrollContainerRef,
 }: SubscribedPageProps) {
 	const {
@@ -70,18 +72,13 @@ export function SubscribedPage({
 	// Restore scroll once after the first batch of posts loads
 	const restoredRef = useRef(false);
 	useEffect(() => {
-		if (
-			!restoredRef.current &&
-			!loading &&
-			posts.length > 0 &&
-			initialScrollY > 0
-		) {
-			restoredRef.current = true;
-			requestAnimationFrame(() =>
-				scrollContainerRef.current?.scrollTo(0, initialScrollY),
-			);
-		}
-	}, [loading, posts.length, initialScrollY, scrollContainerRef]);
+		if (restoredRef.current || loading || posts.length === 0) return;
+		if (!initialAnchor.id) return;
+		const el = scrollContainerRef.current;
+		if (!el) return;
+		restoredRef.current = true;
+		restoreScrollAnchor(el, initialAnchor);
+	}, [loading, posts.length, initialAnchor, scrollContainerRef]);
 
 	if (handles.size === 0) {
 		return (

@@ -23,6 +23,7 @@ import {
 	saveBgSyncEnabled,
 	unregisterPeriodicSync,
 } from "./sync/registerPeriodicSync";
+import type { ScrollAnchor } from "./types";
 
 type Tab = "public" | "subscribed";
 
@@ -31,15 +32,44 @@ const SCROLL_KEYS: Record<Tab, string> = {
 	subscribed: "subee:scroll:subscribed",
 };
 
+const NO_ANCHOR: ScrollAnchor = { id: null, offset: 0 };
+
 // Persisted in localStorage (not sessionStorage) so the position survives the
-// WebView/process being recreated after the app sits in the background — i.e.
-// you return to your spot even after switching away for a long time.
-function readScroll(tab: Tab): number {
-	return Number(localStorage.getItem(SCROLL_KEYS[tab]) ?? 0);
+// WebView/process being recreated after the app sits in the background. Stored
+// as a post anchor (top post id + offset into it) rather than a pixel offset,
+// so it stays accurate across reloads even as content heights/images settle.
+function readAnchor(tab: Tab): ScrollAnchor {
+	try {
+		const raw = localStorage.getItem(SCROLL_KEYS[tab]);
+		if (!raw) return NO_ANCHOR;
+		const parsed = JSON.parse(raw);
+		if (parsed && typeof parsed === "object" && "id" in parsed) {
+			return { id: parsed.id ?? null, offset: Number(parsed.offset) || 0 };
+		}
+	} catch {
+		// legacy/invalid value — start from the top
+	}
+	return NO_ANCHOR;
 }
 
-function saveScroll(tab: Tab, y: number) {
-	localStorage.setItem(SCROLL_KEYS[tab], String(y));
+function saveAnchor(tab: Tab, anchor: ScrollAnchor) {
+	localStorage.setItem(SCROLL_KEYS[tab], JSON.stringify(anchor));
+}
+
+// The post at the top of the viewport plus how far it's scrolled past.
+function captureAnchor(el: HTMLElement): ScrollAnchor {
+	const top = el.scrollTop;
+	if (top <= 0) return NO_ANCHOR;
+	const nodes = el.querySelectorAll<HTMLElement>("[data-post-id]");
+	for (const node of nodes) {
+		if (node.offsetTop + node.offsetHeight > top) {
+			return {
+				id: node.dataset.postId ?? null,
+				offset: Math.round(top - node.offsetTop),
+			};
+		}
+	}
+	return NO_ANCHOR;
 }
 
 export default function App() {
@@ -148,11 +178,11 @@ export default function App() {
 		const subscribedEl = subscribedScrollRef.current;
 		if (!publicEl || !subscribedEl) return;
 		const savePublic = debounce(
-			() => saveScroll("public", publicEl.scrollTop),
+			() => saveAnchor("public", captureAnchor(publicEl)),
 			300,
 		);
 		const saveSubscribed = debounce(
-			() => saveScroll("subscribed", subscribedEl.scrollTop),
+			() => saveAnchor("subscribed", captureAnchor(subscribedEl)),
 			300,
 		);
 		// Capture the latest position the moment the app is backgrounded, before
@@ -161,8 +191,8 @@ export default function App() {
 			if (document.visibilityState !== "hidden") return;
 			savePublic.cancel();
 			saveSubscribed.cancel();
-			saveScroll("public", publicEl.scrollTop);
-			saveScroll("subscribed", subscribedEl.scrollTop);
+			saveAnchor("public", captureAnchor(publicEl));
+			saveAnchor("subscribed", captureAnchor(subscribedEl));
 		};
 		publicEl.addEventListener("scroll", savePublic, { passive: true });
 		subscribedEl.addEventListener("scroll", saveSubscribed, { passive: true });
@@ -277,7 +307,7 @@ export default function App() {
 							accessToken={auth.accessToken}
 							onSubscribe={handleSubscribe}
 							isSubscribed={isSubscribed}
-							initialScrollY={readScroll("subscribed")}
+							initialAnchor={readAnchor("subscribed")}
 							scrollContainerRef={subscribedScrollRef}
 						/>
 					</div>
@@ -295,7 +325,7 @@ export default function App() {
 							accessToken={auth.accessToken}
 							onSubscribe={handleSubscribe}
 							isSubscribed={isSubscribed}
-							initialScrollY={readScroll("public")}
+							initialAnchor={readAnchor("public")}
 							scrollContainerRef={publicScrollRef}
 							excludeSubscribed={excludeSubscribed}
 						/>

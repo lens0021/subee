@@ -3,13 +3,15 @@ import { useEffect, useRef } from "react";
 import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
 import { usePublicTimeline } from "../hooks/usePublicTimeline";
+import type { ScrollAnchor } from "../types";
+import { restoreScrollAnchor } from "./restoreScrollAnchor";
 
 interface PublicPageProps {
 	instanceUrl: string;
 	accessToken: string;
 	onSubscribe: (handle: string) => void;
 	isSubscribed: (handle: string) => boolean;
-	initialScrollY: number;
+	initialAnchor: ScrollAnchor;
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 	excludeSubscribed: boolean;
 }
@@ -19,7 +21,7 @@ export function PublicPage({
 	accessToken,
 	onSubscribe,
 	isSubscribed,
-	initialScrollY,
+	initialAnchor,
 	scrollContainerRef,
 	excludeSubscribed,
 }: PublicPageProps) {
@@ -35,18 +37,13 @@ export function PublicPage({
 	// Restore scroll once after the first batch of posts loads
 	const restoredRef = useRef(false);
 	useEffect(() => {
-		if (
-			!restoredRef.current &&
-			!loading &&
-			posts.length > 0 &&
-			initialScrollY > 0
-		) {
-			restoredRef.current = true;
-			requestAnimationFrame(() =>
-				scrollContainerRef.current?.scrollTo(0, initialScrollY),
-			);
-		}
-	}, [loading, posts.length, initialScrollY, scrollContainerRef]);
+		if (restoredRef.current || loading || posts.length === 0) return;
+		if (!initialAnchor.id) return;
+		const el = scrollContainerRef.current;
+		if (!el) return;
+		restoredRef.current = true;
+		restoreScrollAnchor(el, initialAnchor);
+	}, [loading, posts.length, initialAnchor, scrollContainerRef]);
 
 	return (
 		<>
