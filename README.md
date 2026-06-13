@@ -71,6 +71,8 @@ cd android
 
 CI builds and uploads the APK as the `subee-debug` artifact on every push to main (`Android APK` workflow).
 
+Release APKs are attached to [GitHub Releases](https://github.com/lens0021/subee/releases) by release-please, signed with a fixed key so updates install cleanly. To install on Android, add `https://github.com/lens0021/subee` as an app source in [Obtainium](https://github.com/ImranR98/Obtainium).
+
 ## Tech stack
 
 - React 18 + TypeScript + Vite
