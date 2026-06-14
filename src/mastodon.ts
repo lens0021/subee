@@ -1,7 +1,10 @@
 import type { mastodon } from "masto";
-import { kvGet, kvSet } from "./storage/kv";
+import { kvGetOrMigrate, kvSet } from "./storage/kv";
 
 export const DEFAULT_INSTANCE = "https://mastodon.social";
+
+// Default page size for timeline/account fetches.
+export const PAGE_SIZE = 20;
 
 function instanceBase(url: string): string {
 	return url.replace(/\/$/, "");
@@ -173,31 +176,6 @@ export async function exchangeCodeForToken(
 
 const ACCOUNT_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-/** @deprecated Use `kvGet` from `./storage/kv` (IndexedDB-backed, SW-accessible). */
-export function lsGet<T>(key: string, ttl: number): T | null {
-	try {
-		const raw = localStorage.getItem(key);
-		if (!raw) return null;
-		const { v, t } = JSON.parse(raw) as { v: T; t: number };
-		if (Date.now() - t > ttl) {
-			localStorage.removeItem(key);
-			return null;
-		}
-		return v;
-	} catch {
-		return null;
-	}
-}
-
-/** @deprecated Use `kvSet` from `./storage/kv` (IndexedDB-backed, SW-accessible). */
-export function lsSet(key: string, value: unknown): void {
-	try {
-		localStorage.setItem(key, JSON.stringify({ v: value, t: Date.now() }));
-	} catch {
-		// Storage full or unavailable — silently skip
-	}
-}
-
 // --- Timeline / Account API ---
 
 export async function fetchHomeTimeline(
@@ -207,7 +185,7 @@ export async function fetchHomeTimeline(
 ): Promise<mastodon.v1.Status[]> {
 	const url = new URL(`${instanceBase(instanceUrl)}/api/v1/timelines/home`);
 	if (params?.maxId) url.searchParams.set("max_id", params.maxId);
-	url.searchParams.set("limit", String(params?.limit ?? 20));
+	url.searchParams.set("limit", String(params?.limit ?? PAGE_SIZE));
 	return apiFetch<mastodon.v1.Status[]>(url.toString(), accessToken);
 }
 
@@ -217,15 +195,11 @@ export async function lookupAccount(
 	accessToken?: string,
 ): Promise<mastodon.v1.Account> {
 	const cacheKey = `subee:account:${instanceUrl}:${username}`;
-	const cached = await kvGet<mastodon.v1.Account>(cacheKey, ACCOUNT_CACHE_TTL);
+	const cached = await kvGetOrMigrate<mastodon.v1.Account>(
+		cacheKey,
+		ACCOUNT_CACHE_TTL,
+	);
 	if (cached) return cached;
-	// Migrate legacy localStorage entry if present
-	const legacy = lsGet<mastodon.v1.Account>(cacheKey, ACCOUNT_CACHE_TTL);
-	if (legacy) {
-		localStorage.removeItem(cacheKey);
-		await kvSet(cacheKey, legacy);
-		return legacy;
-	}
 	const url = `${instanceBase(instanceUrl)}/api/v1/accounts/lookup?acct=${encodeURIComponent(username)}`;
 	const account = await apiFetch<mastodon.v1.Account>(url, accessToken);
 	await kvSet(cacheKey, account);
@@ -243,7 +217,7 @@ export async function fetchAccountStatuses(
 	);
 	if (params?.maxId) url.searchParams.set("max_id", params.maxId);
 	if (params?.sinceId) url.searchParams.set("since_id", params.sinceId);
-	url.searchParams.set("limit", String(params?.limit ?? 20));
+	url.searchParams.set("limit", String(params?.limit ?? PAGE_SIZE));
 	return apiFetch<mastodon.v1.Status[]>(url.toString(), accessToken);
 }
 

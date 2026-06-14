@@ -8,8 +8,7 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useEffect, useRef, useState } from "react";
 import { exportHandles } from "../store/subscriptions";
-
-type Tab = "public" | "subscribed";
+import type { Tab } from "../types";
 
 interface AppHeaderProps {
 	activeTab: Tab;

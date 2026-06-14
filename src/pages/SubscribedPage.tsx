@@ -38,7 +38,7 @@ export function SubscribedPage({
 		error,
 		fetchMore,
 		flushBuffer,
-		triggerPoll,
+		poll,
 		accountStatuses,
 		stagedCount,
 		dividerPostId,
@@ -50,10 +50,7 @@ export function SubscribedPage({
 
 	// Pull down at the top of the feed to poll (replaces the old inline refresh
 	// button above the divider).
-	const { pullDistance, armed } = usePullToRefresh(
-		scrollContainerRef,
-		triggerPoll,
-	);
+	const { pullDistance, armed } = usePullToRefresh(scrollContainerRef, poll);
 
 	useEffect(() => {
 		if (!dividerPostId) return;
@@ -145,7 +142,7 @@ export function SubscribedPage({
 				</div>
 			)}
 			<FloatingRefreshButton
-				onPoll={triggerPoll}
+				onPoll={poll}
 				onRefresh={flushBuffer}
 				stagedCount={stagedCount}
 				pollProgress={pollProgress}

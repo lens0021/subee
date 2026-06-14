@@ -1,7 +1,11 @@
-import { orderBy } from "lodash";
 import type { mastodon } from "masto";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchAccountStatuses, lookupAccount, parseHandle } from "../mastodon";
+import {
+	fetchAccountStatuses,
+	lookupAccount,
+	PAGE_SIZE,
+	parseHandle,
+} from "../mastodon";
 import {
 	consumeNativeSyncResults,
 	pushNativeSyncState,
@@ -11,28 +15,20 @@ import {
 	loadCursorCache,
 	saveCursorCache,
 } from "../storage/cursors";
-import { loadPostCache, savePostCache } from "../storage/posts";
-import { concurrent } from "../sync/concurrent";
+import {
+	loadPostCache,
+	MAX_CACHED_POSTS,
+	mergePosts,
+	savePostCache,
+} from "../storage/posts";
+import { concurrent, FEED_CONCURRENCY } from "../sync/concurrent";
 import { pollFeed } from "../sync/pollFeed";
 
-const PAGE_SIZE = 20;
-// Keep foreground resolve/fetch gentle on the home instance (all requests go
-// there); matches the polling concurrency.
-const CONCURRENCY = 3;
 const FLUSH_EVERY = 20; // update UI after every N accounts complete
-const MAX_CACHED_POSTS = 200;
 // On app open / foreground-resume, poll once if the last poll is older than
 // this, staging new posts as "N new". Avoids re-polling on quick reopens so we
 // stay gentle on the home instance (one round, the same as a manual Refresh).
 const AUTO_POLL_STALE_MS = 5 * 60_000;
-
-export type { AccountCursor };
-
-export interface FeedProgress {
-	done: number;
-	total: number;
-	phase: "resolving" | "loading";
-}
 
 export interface PollProgress {
 	done: number;
@@ -71,7 +67,6 @@ export function useSubscribedFeed(
 	}, [instanceUrl]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [progress, setProgress] = useState<FeedProgress | null>(null);
 	const [accountStatuses, setAccountStatuses] = useState<
 		Map<string, AccountLoadStatus>
 	>(new Map());
@@ -100,9 +95,7 @@ export function useSubscribedFeed(
 		if (pendingRef.current.length === 0) return;
 		const toAdd = pendingRef.current.splice(0);
 		setPosts((prev) => {
-			const all = [...prev, ...toAdd];
-			const deduped = [...new Map(all.map((p) => [p.id, p])).values()];
-			const sorted = orderBy(deduped, (p) => p.createdAt, "desc");
+			const sorted = mergePosts(prev, toAdd);
 			void savePostCache(instanceUrl, sorted.slice(0, MAX_CACHED_POSTS));
 			return sorted;
 		});
@@ -111,9 +104,7 @@ export function useSubscribedFeed(
 	const initCursors = useCallback(async () => {
 		const handlesList = [...handles];
 		const newCursors = new Map<string, AccountCursor>();
-		let done = 0;
 
-		setProgress({ done: 0, total: handlesList.length, phase: "resolving" });
 		setAccountStatuses(
 			new Map(handlesList.map((h) => [h, "resolving" as AccountLoadStatus])),
 		);
@@ -138,13 +129,8 @@ export function useSubscribedFeed(
 				} catch {
 					setAccountStatuses((prev) => new Map(prev).set(handle, "failed"));
 				}
-				setProgress({
-					done: ++done,
-					total: handlesList.length,
-					phase: "resolving",
-				});
 			}),
-			CONCURRENCY,
+			FEED_CONCURRENCY,
 		);
 
 		// Save tombstones for failed lookups so cache restore can pass allCovered check
@@ -203,10 +189,6 @@ export function useSubscribedFeed(
 			setLastPollTime(Date.now());
 		}
 	}, [instanceUrl, accessToken]);
-
-	const triggerPoll = useCallback(() => {
-		poll();
-	}, [poll]);
 
 	const fetchMore = useCallback(async () => {
 		if (loadingRef.current) return;
@@ -270,8 +252,6 @@ export function useSubscribedFeed(
 			if (pending.length === 0) return;
 			let completed = 0;
 
-			setProgress({ done: 0, total: pending.length, phase: "loading" });
-
 			await concurrent(
 				pending.map((cursor) => async () => {
 					try {
@@ -302,14 +282,9 @@ export function useSubscribedFeed(
 						);
 					}
 					completed++;
-					setProgress({
-						done: completed,
-						total: pending.length,
-						phase: "loading",
-					});
 					if (!stageToBuffer && completed % FLUSH_EVERY === 0) flush();
 				}),
-				CONCURRENCY,
+				FEED_CONCURRENCY,
 			);
 
 			if (stageToBuffer) {
@@ -332,7 +307,6 @@ export function useSubscribedFeed(
 			void pushNativeSyncState(instanceUrl, accessToken);
 			loadingRef.current = false;
 			setLoading(false);
-			setProgress(null);
 		}
 	}, [handles, instanceUrl, accessToken, initCursors, flush, poll]);
 
@@ -374,10 +348,9 @@ export function useSubscribedFeed(
 		posts,
 		loading,
 		error,
-		progress,
 		fetchMore,
 		flushBuffer,
-		triggerPoll,
+		poll,
 		accountStatuses,
 		stagedCount,
 		dividerPostId,

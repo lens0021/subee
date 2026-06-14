@@ -10,7 +10,7 @@ import parse from "html-react-parser";
 import type { mastodon } from "masto";
 import { useEffect, useState } from "react";
 import { LazyLoadImage } from "react-lazy-load-image-component";
-import { type MisskeyReactions, fetchMisskeyReactions } from "../misskey";
+import { fetchMisskeyReactions, type MisskeyReactions } from "../misskey";
 
 function renderWithEmoji(
 	text: string,
@@ -48,6 +48,7 @@ function applyEmojisToHtml(
 		return `<img src="${e.staticUrl}" alt=":${shortcode}:" title=":${shortcode}:" class="emoji">`;
 	});
 }
+
 import {
 	favouriteStatus,
 	formatHandle,

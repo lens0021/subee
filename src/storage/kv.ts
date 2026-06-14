@@ -41,3 +41,48 @@ export async function kvDel(key: string): Promise<void> {
 		// ignore
 	}
 }
+
+// One-time migration: move a legacy localStorage {v,t} entry into IDB. Reads the
+// localStorage value, removes it, TTL-checks the timestamp, and (if valid) writes
+// it into IDB. Returns the value or null. The localStorage key is always cleared.
+export async function kvMigrateWrapped<T>(
+	key: string,
+	ttl: number,
+): Promise<T | null> {
+	try {
+		const raw = localStorage.getItem(key);
+		if (!raw) return null;
+		localStorage.removeItem(key);
+		const parsed = JSON.parse(raw) as Wrapped<T>;
+		if (!parsed || typeof parsed !== "object" || !("v" in parsed)) return null;
+		if (Date.now() - parsed.t > ttl) return null;
+		await kvSet(key, parsed.v);
+		return parsed.v;
+	} catch {
+		return null;
+	}
+}
+
+// As above, for legacy values stored as a raw (non-enveloped) string.
+export async function kvMigrateRaw(key: string): Promise<string | null> {
+	try {
+		const raw = localStorage.getItem(key);
+		if (raw === null) return null;
+		localStorage.removeItem(key);
+		await kvSet(key, raw);
+		return raw;
+	} catch {
+		return null;
+	}
+}
+
+// kvGet, falling back to a one-time localStorage→IDB migration of a legacy
+// {v,t} entry. The common read path for the wrapped caches.
+export async function kvGetOrMigrate<T>(
+	key: string,
+	ttl: number,
+): Promise<T | null> {
+	const fromIdb = await kvGet<T>(key, ttl);
+	if (fromIdb !== null) return fromIdb;
+	return kvMigrateWrapped<T>(key, ttl);
+}

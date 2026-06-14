@@ -1,17 +1,17 @@
-import { orderBy } from "lodash";
 import type { mastodon } from "masto";
-import { fetchAccountStatuses, RateLimitError } from "../mastodon";
+import { fetchAccountStatuses, PAGE_SIZE, RateLimitError } from "../mastodon";
 import {
 	type AccountCursor,
 	loadCursorCache,
 	saveCursorCache,
 } from "../storage/cursors";
-import { loadPostCache, savePostCache } from "../storage/posts";
-import { concurrent } from "./concurrent";
-
-const PAGE_SIZE = 20;
-const POLL_CONCURRENCY = 3;
-const MAX_CACHED_POSTS = 200;
+import {
+	loadPostCache,
+	MAX_CACHED_POSTS,
+	mergePosts,
+	savePostCache,
+} from "../storage/posts";
+import { concurrent, FEED_CONCURRENCY } from "./concurrent";
 
 export interface PollFeedOptions {
 	instanceUrl: string;
@@ -96,18 +96,13 @@ export async function pollFeed({
 			done++;
 			onProgress?.(done, cursors.length);
 		}),
-		POLL_CONCURRENCY,
+		FEED_CONCURRENCY,
 	);
 
 	await saveCursorCache(instanceUrl, [...cursorMap.entries()]);
 
 	const existing = (await loadPostCache(instanceUrl)) ?? [];
-	const merged = [...existing, ...newPosts];
-	const deduped = [...new Map(merged.map((p) => [p.id, p])).values()];
-	const sorted = orderBy(deduped, (p) => p.createdAt, "desc").slice(
-		0,
-		MAX_CACHED_POSTS,
-	);
+	const sorted = mergePosts(existing, newPosts, MAX_CACHED_POSTS);
 	await savePostCache(instanceUrl, sorted);
 
 	return {

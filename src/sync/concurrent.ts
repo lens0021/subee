@@ -1,3 +1,7 @@
+// Default fan-out for feed resolve/fetch/poll. Kept low so all requests (which
+// all hit the home instance) stay gentle on it.
+export const FEED_CONCURRENCY = 3;
+
 // Run tasks with a fixed concurrency limit.
 // Safe in single-threaded JS: the index increment is synchronous.
 export async function concurrent(

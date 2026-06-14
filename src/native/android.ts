@@ -1,10 +1,12 @@
-import { orderBy } from "lodash";
 import type { mastodon } from "masto";
 import { camelize } from "../mastodon";
 import { loadCursorCache, saveCursorCache } from "../storage/cursors";
-import { loadPostCache, savePostCache } from "../storage/posts";
-
-const MAX_CACHED_POSTS = 200;
+import {
+	loadPostCache,
+	MAX_CACHED_POSTS,
+	mergePosts,
+	savePostCache,
+} from "../storage/posts";
 
 /**
  * JS interface injected by the Android wrapper app (android/).
@@ -126,13 +128,10 @@ export async function consumeNativeSyncResults(
 		const existing = (await loadPostCache(instanceUrl)) ?? [];
 		const known = new Set(existing.map((p) => p.id));
 		added = posts.filter((p) => !known.has(p.id)).length;
-		const merged = [...existing, ...posts];
-		const deduped = [...new Map(merged.map((p) => [p.id, p])).values()];
-		const sorted = orderBy(deduped, (p) => p.createdAt, "desc").slice(
-			0,
-			MAX_CACHED_POSTS,
+		await savePostCache(
+			instanceUrl,
+			mergePosts(existing, posts, MAX_CACHED_POSTS),
 		);
-		await savePostCache(instanceUrl, sorted);
 	}
 
 	const updates = parsed.cursors ?? [];

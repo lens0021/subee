@@ -1,8 +1,6 @@
 import type { mastodon } from "masto";
 import { useCallback, useRef, useState } from "react";
-import { fetchHomeTimeline } from "../mastodon";
-
-const PAGE_SIZE = 20;
+import { fetchHomeTimeline, PAGE_SIZE } from "../mastodon";
 
 export function usePublicTimeline(instanceUrl: string, accessToken: string) {
 	const [posts, setPosts] = useState<mastodon.v1.Status[]>([]);

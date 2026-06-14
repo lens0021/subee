@@ -1,44 +1,36 @@
+import { orderBy } from "lodash";
 import type { mastodon } from "masto";
-import { kvGet, kvSet } from "./kv";
+import { kvGetOrMigrate, kvSet } from "./kv";
 
 export const POST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+export const MAX_CACHED_POSTS = 200;
 
-type Wrapped<T> = { v: T; t: number };
+/**
+ * Merge two post lists into one deduped, newest-first list. Later items win on
+ * duplicate id (so incoming posts replace stale copies). With `cap`, the result
+ * is truncated to that many posts (for cache writes).
+ */
+export function mergePosts(
+	existing: mastodon.v1.Status[],
+	incoming: mastodon.v1.Status[],
+	cap?: number,
+): mastodon.v1.Status[] {
+	const deduped = [
+		...new Map([...existing, ...incoming].map((p) => [p.id, p])).values(),
+	];
+	const sorted = orderBy(deduped, (p) => p.createdAt, "desc");
+	return cap ? sorted.slice(0, cap) : sorted;
+}
 
 const postsKey = (instanceUrl: string) => `subee:posts:${instanceUrl}`;
-
-function migrateFromLocalStorage(
-	instanceUrl: string,
-): mastodon.v1.Status[] | null {
-	const key = postsKey(instanceUrl);
-	try {
-		const raw = localStorage.getItem(key);
-		if (!raw) return null;
-		const parsed = JSON.parse(raw) as Wrapped<mastodon.v1.Status[]>;
-		localStorage.removeItem(key);
-		if (!parsed || typeof parsed !== "object" || !("v" in parsed)) return null;
-		if (Date.now() - parsed.t > POST_CACHE_TTL) return null;
-		return parsed.v;
-	} catch {
-		return null;
-	}
-}
 
 export async function loadPostCache(
 	instanceUrl: string,
 ): Promise<mastodon.v1.Status[] | null> {
-	const fromIdb = await kvGet<mastodon.v1.Status[]>(
+	return kvGetOrMigrate<mastodon.v1.Status[]>(
 		postsKey(instanceUrl),
 		POST_CACHE_TTL,
 	);
-	if (fromIdb) return fromIdb;
-
-	const migrated = migrateFromLocalStorage(instanceUrl);
-	if (migrated) {
-		await kvSet(postsKey(instanceUrl), migrated);
-		return migrated;
-	}
-	return null;
 }
 
 export async function savePostCache(

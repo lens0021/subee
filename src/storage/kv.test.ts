@@ -1,10 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { kvDel, kvGet, kvSet } from "./kv";
+import {
+	kvDel,
+	kvGet,
+	kvGetOrMigrate,
+	kvMigrateRaw,
+	kvMigrateWrapped,
+	kvSet,
+} from "./kv";
 
 describe("kv storage", () => {
 	beforeEach(async () => {
 		await kvDel("test:key");
 		await kvDel("test:other");
+		localStorage.clear();
 		vi.useRealTimers();
 	});
 
@@ -57,5 +65,50 @@ describe("kv storage", () => {
 		await kvSet("test:other", "b");
 		expect(await kvGet<string>("test:key")).toBe("a");
 		expect(await kvGet<string>("test:other")).toBe("b");
+	});
+
+	it("kvMigrateWrapped moves a legacy {v,t} entry into IDB and clears it", async () => {
+		const now = 1_000_000;
+		vi.useFakeTimers();
+		vi.setSystemTime(now);
+		localStorage.setItem("test:key", JSON.stringify({ v: { a: 1 }, t: now }));
+
+		const migrated = await kvMigrateWrapped<{ a: number }>("test:key", 120_000);
+		expect(migrated).toEqual({ a: 1 });
+		// localStorage cleared, value now lives in IDB.
+		expect(localStorage.getItem("test:key")).toBeNull();
+		expect(await kvGet<{ a: number }>("test:key")).toEqual({ a: 1 });
+	});
+
+	it("kvMigrateWrapped returns null (and still clears) for expired/malformed", async () => {
+		const now = 1_000_000;
+		vi.useFakeTimers();
+		vi.setSystemTime(now);
+		localStorage.setItem("test:key", JSON.stringify({ v: "x", t: now }));
+		vi.setSystemTime(now + 200_000);
+		expect(await kvMigrateWrapped<string>("test:key", 120_000)).toBeNull();
+		expect(localStorage.getItem("test:key")).toBeNull();
+
+		localStorage.setItem("test:other", "not json");
+		expect(await kvMigrateWrapped<string>("test:other", 120_000)).toBeNull();
+	});
+
+	it("kvMigrateRaw moves a legacy raw string into IDB", async () => {
+		localStorage.setItem("test:key", "true");
+		const migrated = await kvMigrateRaw("test:key");
+		expect(migrated).toBe("true");
+		expect(localStorage.getItem("test:key")).toBeNull();
+		expect(await kvGet<string>("test:key")).toBe("true");
+	});
+
+	it("kvGetOrMigrate prefers IDB, falls back to legacy localStorage", async () => {
+		await kvSet("test:key", "from-idb");
+		expect(await kvGetOrMigrate<string>("test:key", 120_000)).toBe("from-idb");
+
+		localStorage.setItem(
+			"test:other",
+			JSON.stringify({ v: "from-ls", t: Date.now() }),
+		);
+		expect(await kvGetOrMigrate<string>("test:other", 120_000)).toBe("from-ls");
 	});
 });

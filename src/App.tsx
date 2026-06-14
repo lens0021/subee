@@ -23,9 +23,7 @@ import {
 	saveBgSyncEnabled,
 	unregisterPeriodicSync,
 } from "./sync/registerPeriodicSync";
-import type { ScrollAnchor } from "./types";
-
-type Tab = "public" | "subscribed";
+import type { ScrollAnchor, Tab } from "./types";
 
 const SCROLL_KEYS: Record<Tab, string> = {
 	public: "subee:scroll:public",

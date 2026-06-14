@@ -1,42 +1,9 @@
 import type { entities } from "misskey-js";
-import { kvGet, kvSet } from "./storage/kv";
+import { kvGet, kvGetOrMigrate, kvMigrateRaw, kvSet } from "./storage/kv";
 
 export type MisskeyReactions = Record<string, number>;
 
 const EMOJI_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-// One-time migration helper: if a legacy localStorage value exists for `key`,
-// copy it into IDB and remove the localStorage entry. Returns the migrated
-// value (or null) so the caller can short-circuit a fetch.
-async function migrateLsRaw(key: string): Promise<string | null> {
-	try {
-		const raw = localStorage.getItem(key);
-		if (raw === null) return null;
-		localStorage.removeItem(key);
-		await kvSet(key, raw);
-		return raw;
-	} catch {
-		return null;
-	}
-}
-
-async function migrateLsWrapped<T>(
-	key: string,
-	ttl: number,
-): Promise<T | null> {
-	try {
-		const raw = localStorage.getItem(key);
-		if (!raw) return null;
-		localStorage.removeItem(key);
-		const parsed = JSON.parse(raw) as { v: T; t: number };
-		if (!parsed || typeof parsed !== "object" || !("v" in parsed)) return null;
-		if (Date.now() - parsed.t > ttl) return null;
-		await kvSet(key, parsed.v);
-		return parsed.v;
-	} catch {
-		return null;
-	}
-}
 
 const fetchingEmoji = new Map<string, Promise<string | null>>();
 
@@ -45,10 +12,8 @@ async function fetchLocalEmoji(
 	name: string,
 ): Promise<string | null> {
 	const cacheKey = `subee:misskey:emoji:${hostname}:${name}`;
-	const cached = await kvGet<string>(cacheKey, EMOJI_CACHE_TTL);
+	const cached = await kvGetOrMigrate<string>(cacheKey, EMOJI_CACHE_TTL);
 	if (cached) return cached;
-	const migrated = await migrateLsWrapped<string>(cacheKey, EMOJI_CACHE_TTL);
-	if (migrated) return migrated;
 
 	const inflightKey = `${hostname}:${name}`;
 	const inflight = fetchingEmoji.get(inflightKey);
@@ -82,7 +47,7 @@ async function isMisskey(hostname: string): Promise<boolean> {
 	const cacheKey = `subee:misskey:is:${hostname}`;
 	const cached = await kvGet<string>(cacheKey);
 	if (cached !== null) return cached === "true";
-	const migrated = await migrateLsRaw(cacheKey);
+	const migrated = await kvMigrateRaw(cacheKey);
 	if (migrated !== null) return migrated === "true";
 
 	const inflight = checkingMisskey.get(hostname);
@@ -125,9 +90,10 @@ export async function fetchMisskeyReactions(statusUrl: string): Promise<{
 		if (!(await isMisskey(hostname))) return null;
 
 		const restrictedKey = `subee:misskey:restricted:${hostname}`;
-		const restricted =
-			(await kvGet<boolean>(restrictedKey, EMOJI_CACHE_TTL)) ??
-			(await migrateLsWrapped<boolean>(restrictedKey, EMOJI_CACHE_TTL));
+		const restricted = await kvGetOrMigrate<boolean>(
+			restrictedKey,
+			EMOJI_CACHE_TTL,
+		);
 		if (restricted) return null;
 
 		let res: Response;
