@@ -57,25 +57,27 @@ function parseRetryAfterMs(headers: Headers): number {
 	return DEFAULT_RETRY_AFTER_MS;
 }
 
-async function apiFetch<T>(url: string, accessToken?: string): Promise<T> {
-	const headers: HeadersInit = accessToken
-		? { Authorization: `Bearer ${accessToken}` }
-		: {};
-	const res = await fetch(url, { headers });
+async function request<T>(
+	url: string,
+	opts: { method?: "GET" | "POST"; accessToken?: string } = {},
+): Promise<T> {
+	const res = await fetch(url, {
+		method: opts.method ?? "GET",
+		headers: opts.accessToken
+			? { Authorization: `Bearer ${opts.accessToken}` }
+			: {},
+	});
 	if (res.status === 429)
 		throw new RateLimitError(parseRetryAfterMs(res.headers));
 	if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
 	return camelize(await res.json()) as T;
 }
 
-async function apiPost<T>(url: string, accessToken: string): Promise<T> {
-	const res = await fetch(url, {
-		method: "POST",
-		headers: { Authorization: `Bearer ${accessToken}` },
-	});
-	if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-	return camelize(await res.json()) as T;
-}
+const apiFetch = <T>(url: string, accessToken?: string): Promise<T> =>
+	request<T>(url, { accessToken });
+
+const apiPost = <T>(url: string, accessToken: string): Promise<T> =>
+	request<T>(url, { method: "POST", accessToken });
 
 export function formatHandle(account: { acct: string; url: string }): string {
 	const domain = account.url.match(/https?:\/\/([^/]+)/)?.[1] ?? "";

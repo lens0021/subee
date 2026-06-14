@@ -78,29 +78,20 @@ export function FloatingRefreshButton({
 		);
 	}
 
-	if (dividerState === "above" && onJump) {
-		return (
-			<button
-				type="button"
-				data-testid="fab-jump"
-				onClick={onJump}
-				className={`${PILL} ${PRESS} bg-gray-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium hover:bg-gray-700 active:bg-gray-800 active:scale-95`}
-			>
-				<FontAwesomeIcon icon={faArrowUp} />
-				New posts
-			</button>
-		);
-	}
-
+	// Idle: jump to the divider when it's scrolled above the viewport, otherwise
+	// offer a refresh. Same button, different label/action/testid.
+	const isJump = dividerState === "above" && !!onJump;
 	return (
 		<button
 			type="button"
-			data-testid="fab-refresh"
-			onClick={onPoll}
+			data-testid={isJump ? "fab-jump" : "fab-refresh"}
+			onClick={isJump ? onJump : onPoll}
 			className={`${PILL} ${PRESS} bg-gray-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium hover:bg-gray-700 active:bg-gray-800 active:scale-95`}
 		>
 			<FontAwesomeIcon icon={faArrowUp} />
-			Refresh{lastPollTime ? ` · checked ${relativeTime(lastPollTime)}` : ""}
+			{isJump
+				? "New posts"
+				: `Refresh${lastPollTime ? ` · checked ${relativeTime(lastPollTime)}` : ""}`}
 		</button>
 	);
 }

@@ -143,7 +143,8 @@ export async function fetchMisskeyReactions(statusUrl: string): Promise<{
 				localEmojiNames.map((name) => fetchLocalEmoji(hostname, name)),
 			);
 			for (let i = 0; i < localEmojiNames.length; i++) {
-				if (urls[i]) reactionEmojis[`${localEmojiNames[i]}@.`] = urls[i]!;
+				const url = urls[i];
+				if (url) reactionEmojis[`${localEmojiNames[i]}@.`] = url;
 			}
 		}
 

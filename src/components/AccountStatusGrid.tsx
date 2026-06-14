@@ -50,12 +50,7 @@ export function AccountStatusGrid({
 				<div className="text-xs mb-2 text-gray-600 dark:text-gray-300 font-mono break-all">
 					{selected}
 					{selectedStatus && (
-						<span className="ml-2 text-gray-400">
-							{selectedStatus === "resolving" && "— resolving"}
-							{selectedStatus === "loading" && "— loading"}
-							{selectedStatus === "done" && "— done"}
-							{selectedStatus === "failed" && "— failed"}
-						</span>
+						<span className="ml-2 text-gray-400">— {selectedStatus}</span>
 					)}
 				</div>
 			)}

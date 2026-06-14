@@ -12,27 +12,33 @@ import { useEffect, useState } from "react";
 import { LazyLoadImage } from "react-lazy-load-image-component";
 import { fetchMisskeyReactions, type MisskeyReactions } from "../misskey";
 
+const SHORTCODE_RE = /:([a-zA-Z0-9_]+):/g;
+
+function buildEmojiMap(
+	emojis: mastodon.v1.CustomEmoji[],
+): Record<string, mastodon.v1.CustomEmoji> {
+	return Object.fromEntries(emojis.map((e) => [e.shortcode, e]));
+}
+
 function renderWithEmoji(
 	text: string,
 	emojis: mastodon.v1.CustomEmoji[],
 ): React.ReactNode {
 	if (!emojis.length) return text;
-	const parts = text.split(/:([a-zA-Z0-9_]+):/g);
-	const emojiMap = Object.fromEntries(emojis.map((e) => [e.shortcode, e]));
-	return parts.map((part, i) => {
-		if (i % 2 === 1 && emojiMap[part]) {
-			const e = emojiMap[part];
-			return (
-				<img
-					key={i}
-					src={e.staticUrl}
-					alt={`:${e.shortcode}:`}
-					title={`:${e.shortcode}:`}
-					className="emoji"
-				/>
-			);
-		}
-		return part;
+	const emojiMap = buildEmojiMap(emojis);
+	return text.split(SHORTCODE_RE).map((part, i) => {
+		const e = i % 2 === 1 ? emojiMap[part] : undefined;
+		if (!e) return part;
+		return (
+			<img
+				// biome-ignore lint/suspicious/noArrayIndexKey: positionally stable split output
+				key={i}
+				src={e.staticUrl}
+				alt={`:${e.shortcode}:`}
+				title={`:${e.shortcode}:`}
+				className="emoji"
+			/>
+		);
 	});
 }
 
@@ -41,8 +47,8 @@ function applyEmojisToHtml(
 	emojis: mastodon.v1.CustomEmoji[],
 ): string {
 	if (!emojis.length) return html;
-	const emojiMap = Object.fromEntries(emojis.map((e) => [e.shortcode, e]));
-	return html.replace(/:([a-zA-Z0-9_]+):/g, (match, shortcode) => {
+	const emojiMap = buildEmojiMap(emojis);
+	return html.replace(SHORTCODE_RE, (match, shortcode) => {
 		const e = emojiMap[shortcode];
 		if (!e) return match;
 		return `<img src="${e.staticUrl}" alt=":${shortcode}:" title=":${shortcode}:" class="emoji">`;
