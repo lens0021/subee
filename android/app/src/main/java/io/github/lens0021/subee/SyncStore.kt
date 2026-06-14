@@ -91,12 +91,16 @@ class SyncStore(context: Context) {
             merged.sortByDescending { it.optString("created_at") }
             val capped = merged.take(MAX_PENDING_POSTS)
 
+            // Notification count tracks cumulative unseen arrivals (reset on
+            // consume), not the post cache size — so it doesn't pin at the 200 cap.
+            val unseen = prefs.getInt(KEY_UNSEEN, 0) + added
             prefs.edit()
                 .putString(KEY_STATE, state.toString())
                 .putString(KEY_PENDING_CURSORS, pendingCursors.toString())
                 .putString(KEY_PENDING_POSTS, JSONArray(capped).toString())
+                .putInt(KEY_UNSEEN, unseen)
                 .apply()
-            PollResult(added, capped.size)
+            PollResult(added, unseen)
         }
 
     /** Return pending results as JSON for the web side and clear them. */
@@ -110,7 +114,11 @@ class SyncStore(context: Context) {
                 update.put("handle", handle)
                 cursorsArr.put(update)
             }
-            prefs.edit().remove(KEY_PENDING_POSTS).remove(KEY_PENDING_CURSORS).apply()
+            prefs.edit()
+                .remove(KEY_PENDING_POSTS)
+                .remove(KEY_PENDING_CURSORS)
+                .remove(KEY_UNSEEN)
+                .apply()
             JSONObject().put("posts", JSONArray(posts)).put("cursors", cursorsArr).toString()
         }
 
@@ -121,6 +129,7 @@ class SyncStore(context: Context) {
         private const val KEY_PENDING_CURSORS = "pendingCursors"
         private const val KEY_ENABLED = "backgroundSyncEnabled"
         private const val KEY_RATE_LIMITED_UNTIL = "rateLimitedUntil"
+        private const val KEY_UNSEEN = "unseenCount"
         private const val MAX_PENDING_POSTS = 200
     }
 }

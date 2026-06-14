@@ -91,6 +91,13 @@ class MainActivity : Activity() {
                     // system browser, leaving the app's WebView untouched so
                     // returning resumes exactly where the user left off.
                     val popup = WebView(view.context)
+                    var reclaimed = false
+                    fun reclaim() {
+                        if (!reclaimed) {
+                            reclaimed = true
+                            popup.destroy()
+                        }
+                    }
                     popup.webViewClient =
                         object : WebViewClient() {
                             override fun shouldOverrideUrlLoading(
@@ -98,10 +105,14 @@ class MainActivity : Activity() {
                                 request: WebResourceRequest,
                             ): Boolean {
                                 openExternally(request.url)
-                                v.post { v.destroy() }
+                                v.post { reclaim() }
                                 return true
                             }
                         }
+                    // A fragment/URL-less open (e.g. href="#") may never hit
+                    // shouldOverrideUrlLoading, which would leak this WebView;
+                    // reclaim it shortly regardless.
+                    popup.postDelayed({ reclaim() }, POPUP_RECLAIM_MS)
                     (resultMsg.obj as WebView.WebViewTransport).webView = popup
                     resultMsg.sendToTarget()
                     return true
@@ -114,6 +125,25 @@ class MainActivity : Activity() {
             webView.restoreState(savedInstanceState)
             if (webView.url == null) webView.loadUrl(APP_URL)
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::webView.isInitialized) {
+            webView.onResume()
+            // Nudge the page-visibility handler so a warm resume drains any
+            // background-fetched posts and clears the notification. (WebView does
+            // not reliably fire visibilitychange on activity resume by itself.)
+            webView.evaluateJavascript(
+                "document.dispatchEvent(new Event('visibilitychange'))",
+                null,
+            )
+        }
+    }
+
+    override fun onPause() {
+        if (::webView.isInitialized) webView.onPause()
+        super.onPause()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -156,5 +186,6 @@ class MainActivity : Activity() {
     companion object {
         // Served by WebViewAssetLoader from assets/www (the vite build output)
         const val APP_URL = "https://appassets.androidplatform.net/"
+        private const val POPUP_RECLAIM_MS = 2000L
     }
 }

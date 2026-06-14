@@ -24,6 +24,9 @@ class SubeeBridge(private val activity: MainActivity) {
     fun setBackgroundSync(enabled: Boolean) {
         store.backgroundSyncEnabled = enabled
         if (enabled) {
+            // A stale backoff from before the toggle shouldn't make the first run
+            // after re-enabling skip itself.
+            store.rateLimitedUntil = 0L
             FeedSyncScheduler.schedule(activity.applicationContext)
             activity.runOnUiThread { activity.ensureNotificationPermission() }
         } else {

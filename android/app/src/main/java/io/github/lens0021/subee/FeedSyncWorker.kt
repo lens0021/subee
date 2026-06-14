@@ -127,7 +127,8 @@ class FeedSyncWorker(
      */
     private fun retryAfterMs(conn: HttpURLConnection): Long {
         conn.getHeaderField("Retry-After")?.trim()?.toLongOrNull()?.let { seconds ->
-            return (seconds * 1000).coerceIn(0L, MAX_RATE_LIMIT_BACKOFF_MS)
+            // Clamp seconds BEFORE multiplying so a huge value can't overflow Long.
+            return seconds.coerceIn(0L, MAX_RATE_LIMIT_BACKOFF_MS / 1000) * 1000
         }
         conn.getHeaderField("X-RateLimit-Reset")?.let { reset ->
             try {
