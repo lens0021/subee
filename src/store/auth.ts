@@ -39,8 +39,10 @@ function migrateFromLocalStorage(): Promise<void> {
 		}
 		for (const k of keys) {
 			const v = localStorage.getItem(k);
-			if (v !== null) {
-				await kvSet(k, v);
+			// Remove the localStorage copy only after IDB confirms the write — an
+			// IDB failure here would otherwise wipe the access token from both
+			// stores and silently log the user out.
+			if (v !== null && (await kvSet(k, v))) {
 				localStorage.removeItem(k);
 			}
 		}

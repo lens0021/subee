@@ -6,7 +6,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { formatDistanceToNow } from "date-fns";
-import parse from "html-react-parser";
+import parse, { type DOMNode } from "html-react-parser";
 import type { mastodon } from "masto";
 import { useEffect, useState } from "react";
 import { LazyLoadImage } from "react-lazy-load-image-component";
@@ -42,16 +42,23 @@ function renderWithEmoji(
 	});
 }
 
-function applyEmojisToHtml(
+// Parse server HTML and substitute custom emoji into TEXT NODES ONLY. Emoji
+// become React <img> elements (src passed as a prop, so it's escaped) — never
+// string-concatenated into the markup, which would let a hostile emoji URL
+// inject breakout tags or corrupt an attribute/URL that happens to contain a
+// ":shortcode:" substring.
+export function renderContent(
 	html: string,
 	emojis: mastodon.v1.CustomEmoji[],
-): string {
-	if (!emojis.length) return html;
-	const emojiMap = buildEmojiMap(emojis);
-	return html.replace(SHORTCODE_RE, (match, shortcode) => {
-		const e = emojiMap[shortcode];
-		if (!e) return match;
-		return `<img src="${e.staticUrl}" alt=":${shortcode}:" title=":${shortcode}:" class="emoji">`;
+): React.ReactNode {
+	if (!emojis.length) return parse(html);
+	return parse(html, {
+		replace: (domNode: DOMNode) => {
+			if (domNode.type === "text") {
+				const text = (domNode as unknown as { data: string }).data;
+				if (text.includes(":")) return <>{renderWithEmoji(text, emojis)}</>;
+			}
+		},
 	});
 }
 
@@ -249,7 +256,13 @@ export function PostCard({
 			.catch(() => {});
 	}, [actual.url]);
 
-	const createdAt = actual.createdAt ? new Date(actual.createdAt) : new Date();
+	// Guard against a non-empty but unparseable createdAt (corrupted cache /
+	// bridged status): an Invalid Date would throw in formatDistanceToNow and
+	// the error boundary would silently drop the whole post.
+	const parsedCreatedAt = new Date(actual.createdAt ?? "");
+	const createdAt = Number.isNaN(parsedCreatedAt.getTime())
+		? new Date()
+		: parsedCreatedAt;
 	const relativeTime = formatDistanceToNow(createdAt, { addSuffix: true });
 	const absoluteTime = createdAt.toLocaleString();
 
@@ -338,7 +351,7 @@ export function PostCard({
 			{/* Post content */}
 			{showContent && (
 				<div className="mt-2 text-sm [&_a]:text-blue-500 break-words">
-					{parse(applyEmojisToHtml(actual.content ?? "", actual.emojis ?? []))}
+					{renderContent(actual.content ?? "", actual.emojis ?? [])}
 				</div>
 			)}
 

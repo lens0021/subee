@@ -37,22 +37,31 @@ export class RateLimitError extends Error {
 
 const MAX_RETRY_AFTER_MS = 60 * 60_000; // 1h
 const DEFAULT_RETRY_AFTER_MS = 5 * 60_000; // 5min
+// An explicit 429 signal must always yield a real (non-zero) backoff, even if
+// the reset time is already past (clock skew) — never hammer a limited instance.
+const MIN_EXPLICIT_BACKOFF_MS = 1000;
 
 function parseRetryAfterMs(headers: Headers): number {
-	const clamp = (ms: number) =>
-		Math.min(MAX_RETRY_AFTER_MS, Math.max(0, Math.round(ms)));
-	const retryAfter = headers.get("Retry-After");
+	const clamp = (ms: number, min: number) =>
+		Math.min(MAX_RETRY_AFTER_MS, Math.max(min, Math.round(ms)));
+	const retryAfter = headers.get("Retry-After")?.trim();
 	if (retryAfter) {
-		const secs = Number(retryAfter);
-		if (Number.isFinite(secs)) return clamp(secs * 1000);
-		const at = Date.parse(retryAfter);
-		if (!Number.isNaN(at)) return clamp(at - Date.now());
+		if (/^\d+$/.test(retryAfter)) {
+			// Whole seconds. Treat 0 as "no explicit value" and fall through.
+			const secs = Number(retryAfter);
+			if (secs > 0) return clamp(secs * 1000, MIN_EXPLICIT_BACKOFF_MS);
+		} else {
+			const at = Date.parse(retryAfter); // HTTP-date form
+			if (!Number.isNaN(at))
+				return clamp(at - Date.now(), MIN_EXPLICIT_BACKOFF_MS);
+		}
 	}
 	// Mastodon sends X-RateLimit-Reset as an ISO8601 timestamp.
 	const reset = headers.get("X-RateLimit-Reset");
 	if (reset) {
 		const at = Date.parse(reset);
-		if (!Number.isNaN(at)) return clamp(at - Date.now());
+		if (!Number.isNaN(at))
+			return clamp(at - Date.now(), MIN_EXPLICIT_BACKOFF_MS);
 	}
 	return DEFAULT_RETRY_AFTER_MS;
 }
@@ -136,6 +145,9 @@ export async function registerApp(
 	});
 	if (!res.ok) throw new Error(`Failed to register app: ${await res.text()}`);
 	const data = await res.json();
+	if (!data.client_id || !data.client_secret) {
+		throw new Error("App registration response missing client credentials");
+	}
 	return { clientId: data.client_id, clientSecret: data.client_secret };
 }
 
@@ -171,6 +183,13 @@ export async function exchangeCodeForToken(
 	});
 	if (!res.ok) throw new Error(`Failed to exchange token: ${await res.text()}`);
 	const data = await res.json();
+	if (!data.access_token) {
+		throw new Error(
+			data.error_description ||
+				data.error ||
+				"No access_token in token response",
+		);
+	}
 	return data.access_token;
 }
 

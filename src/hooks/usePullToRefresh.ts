@@ -5,6 +5,9 @@ import { type RefObject, useEffect, useRef, useState } from "react";
 export const PULL_THRESHOLD = 64;
 const MAX_PULL = 96;
 const DAMP = 0.5;
+// Downward finger travel before we commit to (own) the gesture. Below this we
+// leave native scrolling alone so a stray touch isn't claimed.
+const PULL_SLOP = 8;
 
 /**
  * Pull-to-refresh on a scroll container: when already scrolled to the top,
@@ -21,6 +24,9 @@ export function usePullToRefresh(
 	const pullRef = useRef(0);
 	const startYRef = useRef(0);
 	const pullingRef = useRef(false);
+	// Whether we've committed to the gesture (called preventDefault). Once true we
+	// keep owning the whole touch so native scroll can't get stuck half-disabled.
+	const claimedRef = useRef(false);
 	// Keep the latest onRefresh without re-binding the listeners.
 	const onRefreshRef = useRef(onRefresh);
 	onRefreshRef.current = onRefresh;
@@ -38,23 +44,31 @@ export function usePullToRefresh(
 			if (el.scrollTop > 0 || e.touches.length !== 1) return;
 			startYRef.current = e.touches[0].clientY;
 			pullingRef.current = true;
+			claimedRef.current = false;
 		};
 		const onMove = (e: TouchEvent) => {
 			if (!pullingRef.current) return;
 			const dy = e.touches[0].clientY - startYRef.current;
-			if (dy <= 0 || el.scrollTop > 0) {
-				// Upward, or no longer at the top — hand back to normal scrolling.
-				pullingRef.current = false;
-				setDist(0);
-				return;
+			if (!claimedRef.current) {
+				// Not committed yet: let native scrolling work. Abandon if the user
+				// scrolled the container or is dragging upward; wait past the slop.
+				if (dy <= 0 || el.scrollTop > 0) {
+					pullingRef.current = false;
+					setDist(0);
+					return;
+				}
+				if (dy < PULL_SLOP) return;
+				claimedRef.current = true;
 			}
-			// Suppress native scroll/overscroll while we own the gesture.
+			// Committed: own the whole gesture so native scroll can't get stuck.
+			// Reversing upward just snaps the indicator toward 0.
 			e.preventDefault();
-			setDist(Math.min(MAX_PULL, dy * DAMP));
+			setDist(Math.min(MAX_PULL, Math.max(0, dy) * DAMP));
 		};
 		const onEnd = () => {
 			if (!pullingRef.current) return;
 			pullingRef.current = false;
+			claimedRef.current = false;
 			if (pullRef.current >= PULL_THRESHOLD) onRefreshRef.current();
 			setDist(0);
 		};

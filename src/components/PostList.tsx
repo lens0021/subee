@@ -16,6 +16,11 @@ class PostCardErrorBoundary extends Component<
 	static getDerivedStateFromError() {
 		return { hasError: true };
 	}
+	componentDidCatch(error: unknown) {
+		// A post rendered to null is invisible — surface why instead of silently
+		// dropping it.
+		console.warn("[subee] post failed to render:", error);
+	}
 	render() {
 		if (this.state.hasError) return null;
 		return this.props.children;
@@ -55,7 +60,7 @@ export function PostList({
 	dividerPostId,
 	onDividerRef,
 }: PostListProps) {
-	useInfiniteScroll(onLoadMore, scrollContainerRef);
+	useInfiniteScroll(onLoadMore, scrollContainerRef, posts.length);
 
 	useEffect(() => {
 		onMount?.();
@@ -93,8 +98,10 @@ export function PostList({
 				</div>
 			)}
 			{posts.map((status) => {
-				const subscribed =
-					status.reblog === null && isSubscribed(formatHandle(status.account));
+				// Judge subscription on the displayed (boosted) author so a boost of
+				// a subscribed account is hidden too under "Exclude subscribed".
+				const actual = status.reblog ?? status;
+				const subscribed = isSubscribed(formatHandle(actual.account));
 				return (
 					<PostCardErrorBoundary key={status.id}>
 						{dividerPostId === status.id && (

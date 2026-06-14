@@ -56,9 +56,16 @@ export function AppHeader({
 	}, []);
 
 	const handleCopy = async () => {
-		await navigator.clipboard.writeText(exportHandles(handles));
-		setCopied(true);
-		setTimeout(() => setCopied(false), 2000);
+		const text = exportHandles(handles);
+		try {
+			await navigator.clipboard.writeText(text);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		} catch {
+			// Clipboard write can reject (focus loss, OEM policy). Don't leave an
+			// unhandled rejection; show the text so the user can copy manually.
+			window.prompt("Copy subscriptions:", text);
+		}
 	};
 
 	const tabClass = (tab: Tab) =>
@@ -112,7 +119,7 @@ export function AppHeader({
 								<button
 									type="button"
 									onClick={() => {
-										handleCopy();
+										void handleCopy();
 										setShowMenu(false);
 									}}
 									className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"

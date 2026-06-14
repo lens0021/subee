@@ -174,10 +174,22 @@ export function useSubscribedFeed(
 				},
 			});
 			if (rateLimitedUntil) rateLimitedUntilRef.current = rateLimitedUntil;
-			// Refresh in-memory cursors map so callers (initCursors retries, etc.)
-			// see the updated sinceId/lastPolledAt persisted by pollFeed.
+			// Merge only the fields pollFeed advances (sinceId/lastPolledAt) into
+			// the in-memory cursors. A wholesale replace would clobber a maxId that
+			// a concurrent pagination fetchMore advanced, re-fetching a loaded page.
 			const refreshed = await loadCursorCache(instanceUrl);
-			if (refreshed) cursorsRef.current = new Map(refreshed);
+			if (refreshed) {
+				const map = cursorsRef.current;
+				for (const [handle, c] of refreshed) {
+					const cur = map.get(handle);
+					map.set(
+						handle,
+						cur
+							? { ...cur, sinceId: c.sinceId, lastPolledAt: c.lastPolledAt }
+							: c,
+					);
+				}
+			}
 			void pushNativeSyncState(instanceUrl, accessToken);
 			if (newPosts.length > 0) {
 				bufferRef.current.push(...newPosts);
@@ -191,7 +203,9 @@ export function useSubscribedFeed(
 	}, [instanceUrl, accessToken]);
 
 	const fetchMore = useCallback(async () => {
-		if (loadingRef.current) return;
+		// Don't paginate while a poll is in flight — poll refreshes cursors from
+		// disk and the two would race on cursorsRef.
+		if (loadingRef.current || pollingRef.current) return;
 		loadingRef.current = true;
 		setLoading(true);
 		setError(null);
@@ -310,6 +324,25 @@ export function useSubscribedFeed(
 		}
 	}, [handles, instanceUrl, accessToken, initCursors, flush, poll]);
 
+	// Pull in posts the native background worker fetched while we were closed and
+	// surface them as "N new". On a cold start the mount effect already adopts
+	// them into the feed; this covers a warm resume where nothing remounts.
+	const drainNativeResults = useCallback(async () => {
+		const added = await consumeNativeSyncResults(instanceUrl);
+		if (added <= 0) return;
+		const cached = await loadPostCache(instanceUrl);
+		if (!cached) return;
+		const known = new Set([
+			...postsRef.current.map((p) => p.id),
+			...bufferRef.current.map((p) => p.id),
+		]);
+		const fresh = cached.filter((p) => !known.has(p.id));
+		if (fresh.length > 0) {
+			bufferRef.current.push(...fresh);
+			setStagedCount(bufferRef.current.length);
+		}
+	}, [instanceUrl]);
+
 	// Bringing the app back to the foreground after a while (without a cold
 	// start) should also surface new posts as "N new". Same staleness gate keeps
 	// it gentle, and poll()'s own guards prevent overlapping rounds.
@@ -317,11 +350,12 @@ export function useSubscribedFeed(
 		const onVisible = () => {
 			if (document.visibilityState !== "visible") return;
 			if (!initializedRef.current) return;
+			void drainNativeResults();
 			if (Date.now() - (lastPollTime ?? 0) > AUTO_POLL_STALE_MS) poll();
 		};
 		document.addEventListener("visibilitychange", onVisible);
 		return () => document.removeEventListener("visibilitychange", onVisible);
-	}, [lastPollTime, poll]);
+	}, [lastPollTime, poll, drainNativeResults]);
 
 	// Load accounts that have never been fetched (e.g. importing subscriptions
 	// into an empty feed). Only runs while uninitialized, so subscribing a

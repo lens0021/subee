@@ -61,10 +61,11 @@ async function isMisskey(hostname: string): Promise<boolean> {
 				body: JSON.stringify({}),
 			});
 			const result = res.ok;
+			// Only cache a definitive server response. A thrown fetch (transient
+			// network/CORS drop) must not poison the cache forever — retry later.
 			await kvSet(cacheKey, String(result));
 			return result;
 		} catch {
-			await kvSet(cacheKey, "false");
 			return false;
 		} finally {
 			checkingMisskey.delete(hostname);
