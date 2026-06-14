@@ -20,11 +20,47 @@ export function camelize(obj: unknown): unknown {
 	return obj;
 }
 
+// Thrown on HTTP 429 so callers can back off instead of hammering a
+// rate-limited instance. retryAfterMs follows the same policy as the native
+// Android worker: Retry-After, else X-RateLimit-Reset, else 5min, capped 1h.
+export class RateLimitError extends Error {
+	retryAfterMs: number;
+	constructor(retryAfterMs: number) {
+		super("HTTP 429: rate limited");
+		this.name = "RateLimitError";
+		this.retryAfterMs = retryAfterMs;
+	}
+}
+
+const MAX_RETRY_AFTER_MS = 60 * 60_000; // 1h
+const DEFAULT_RETRY_AFTER_MS = 5 * 60_000; // 5min
+
+function parseRetryAfterMs(headers: Headers): number {
+	const clamp = (ms: number) =>
+		Math.min(MAX_RETRY_AFTER_MS, Math.max(0, Math.round(ms)));
+	const retryAfter = headers.get("Retry-After");
+	if (retryAfter) {
+		const secs = Number(retryAfter);
+		if (Number.isFinite(secs)) return clamp(secs * 1000);
+		const at = Date.parse(retryAfter);
+		if (!Number.isNaN(at)) return clamp(at - Date.now());
+	}
+	// Mastodon sends X-RateLimit-Reset as an ISO8601 timestamp.
+	const reset = headers.get("X-RateLimit-Reset");
+	if (reset) {
+		const at = Date.parse(reset);
+		if (!Number.isNaN(at)) return clamp(at - Date.now());
+	}
+	return DEFAULT_RETRY_AFTER_MS;
+}
+
 async function apiFetch<T>(url: string, accessToken?: string): Promise<T> {
 	const headers: HeadersInit = accessToken
 		? { Authorization: `Bearer ${accessToken}` }
 		: {};
 	const res = await fetch(url, { headers });
+	if (res.status === 429)
+		throw new RateLimitError(parseRetryAfterMs(res.headers));
 	if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
 	return camelize(await res.json()) as T;
 }

@@ -1,6 +1,6 @@
 import { orderBy } from "lodash";
 import type { mastodon } from "masto";
-import { fetchAccountStatuses } from "../mastodon";
+import { fetchAccountStatuses, RateLimitError } from "../mastodon";
 import {
 	type AccountCursor,
 	loadCursorCache,
@@ -26,6 +26,9 @@ export interface PollFeedOptions {
 export interface PollFeedResult {
 	newPosts: mastodon.v1.Status[];
 	totalPosts: number;
+	// Set when the instance returned HTTP 429 this round; callers should not
+	// poll again until this timestamp (ms epoch).
+	rateLimitedUntil?: number;
 }
 
 export async function pollFeed({
@@ -52,10 +55,19 @@ export async function pollFeed({
 	const cursorMap = new Map(cached);
 	const newPosts: mastodon.v1.Status[] = [];
 	let done = 0;
+	// Once the instance rate-limits us, stop launching new requests this round
+	// instead of piling more onto an instance that already said "slow down".
+	let stopped = false;
+	let retryAfterMs = 0;
 	onProgress?.(0, cursors.length);
 
 	await concurrent(
 		cursors.map((cursor) => async () => {
+			if (stopped) {
+				done++;
+				onProgress?.(done, cursors.length);
+				return;
+			}
 			onAccountStatus?.(cursor.handle, "loading");
 			try {
 				const results = await fetchAccountStatuses(
@@ -71,9 +83,15 @@ export async function pollFeed({
 				});
 				if (results.length > 0) newPosts.push(...results);
 				onAccountStatus?.(cursor.handle, "done");
-			} catch {
-				// silently ignore poll errors
-				onAccountStatus?.(cursor.handle, "failed");
+			} catch (e) {
+				if (e instanceof RateLimitError) {
+					stopped = true;
+					retryAfterMs = Math.max(retryAfterMs, e.retryAfterMs);
+					// Not a real failure — just deferred; don't flag the account.
+				} else {
+					// silently ignore poll errors
+					onAccountStatus?.(cursor.handle, "failed");
+				}
 			}
 			done++;
 			onProgress?.(done, cursors.length);
@@ -92,5 +110,9 @@ export async function pollFeed({
 	);
 	await savePostCache(instanceUrl, sorted);
 
-	return { newPosts, totalPosts: sorted.length };
+	return {
+		newPosts,
+		totalPosts: sorted.length,
+		...(retryAfterMs > 0 && { rateLimitedUntil: Date.now() + retryAfterMs }),
+	};
 }

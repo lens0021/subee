@@ -93,6 +93,8 @@ export function useSubscribedFeed(
 	// Staging buffer — posts fetched by polling, not yet visible in the feed.
 	const bufferRef = useRef<mastodon.v1.Status[]>([]);
 	const pollingRef = useRef(false);
+	// After a 429, don't poll again until this timestamp (ms epoch).
+	const rateLimitedUntilRef = useRef(0);
 
 	const flush = useCallback(() => {
 		if (pendingRef.current.length === 0) return;
@@ -164,15 +166,28 @@ export function useSubscribedFeed(
 	const poll = useCallback(async () => {
 		if (pollingRef.current || loadingRef.current || !initializedRef.current)
 			return;
+		// Honor a 429 backoff so we stay gentle on the home instance.
+		if (Date.now() < rateLimitedUntilRef.current) return;
 		pollingRef.current = true;
 		try {
-			const { newPosts } = await pollFeed({
+			const { newPosts, rateLimitedUntil } = await pollFeed({
 				instanceUrl,
 				accessToken,
 				onProgress: (done, total) => setPollProgress({ done, total }),
-				onAccountStatus: (handle, status) =>
-					setAccountStatuses((prev) => new Map(prev).set(handle, status)),
+				// A background poll must NOT light up the initial-load dots. It
+				// shares accountStatuses with the initial load, so ignore the
+				// transient "loading"/"failed" a poll produces and only let a
+				// success heal a failure left over from the initial load.
+				onAccountStatus: (handle, status) => {
+					if (status !== "done") return;
+					setAccountStatuses((prev) =>
+						prev.get(handle) === "failed"
+							? new Map(prev).set(handle, "done")
+							: prev,
+					);
+				},
 			});
+			if (rateLimitedUntil) rateLimitedUntilRef.current = rateLimitedUntil;
 			// Refresh in-memory cursors map so callers (initCursors retries, etc.)
 			// see the updated sinceId/lastPolledAt persisted by pollFeed.
 			const refreshed = await loadCursorCache(instanceUrl);

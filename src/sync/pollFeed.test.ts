@@ -1,6 +1,6 @@
 import type { mastodon } from "masto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchAccountStatuses } from "../mastodon";
+import { fetchAccountStatuses, RateLimitError } from "../mastodon";
 import { loadCursorCache, saveCursorCache } from "../storage/cursors";
 import { kvDel } from "../storage/kv";
 import { loadPostCache, savePostCache } from "../storage/posts";
@@ -138,11 +138,74 @@ describe("pollFeed", () => {
 		]);
 		mockFetchAccountStatuses.mockRejectedValue(new Error("boom"));
 
+		const statuses: string[] = [];
 		const res = await pollFeed({
 			instanceUrl: INSTANCE,
 			accessToken: "tok",
+			onAccountStatus: (_h, s) => statuses.push(s),
 		});
 		expect(res.newPosts).toEqual([]);
 		expect(res.totalPosts).toBe(0);
+		// A generic error marks the account failed and does not set a backoff.
+		expect(statuses).toContain("failed");
+		expect(res.rateLimitedUntil).toBeUndefined();
+	});
+
+	it("backs off on 429 without flagging the account as failed", async () => {
+		await saveCursorCache(INSTANCE, [
+			[
+				"@a@test.example",
+				{
+					handle: "@a@test.example",
+					accountId: "a1",
+					instanceUrl: INSTANCE,
+					sinceId: "s1",
+					done: false,
+				},
+			],
+		]);
+		mockFetchAccountStatuses.mockRejectedValue(new RateLimitError(120_000));
+
+		const statuses: string[] = [];
+		const before = Date.now();
+		const res = await pollFeed({
+			instanceUrl: INSTANCE,
+			accessToken: "tok",
+			onAccountStatus: (_h, s) => statuses.push(s),
+		});
+
+		expect(res.newPosts).toEqual([]);
+		// A 429 is a deferral, not a failure: no "failed" status (so the UI's
+		// initial-load dots never light up), and a backoff window is returned.
+		expect(statuses).not.toContain("failed");
+		expect(res.rateLimitedUntil).toBeGreaterThanOrEqual(before + 120_000);
+		expect(res.rateLimitedUntil).toBeLessThanOrEqual(Date.now() + 120_000);
+	});
+
+	it("stops polling remaining cursors once rate-limited", async () => {
+		// 5 cursors, concurrency 3: the first to run 429s, so the cursors that
+		// have not started yet are skipped rather than piled on.
+		await saveCursorCache(
+			INSTANCE,
+			Array.from({ length: 5 }, (_, i) => [
+				`@a${i}@test.example`,
+				{
+					handle: `@a${i}@test.example`,
+					accountId: `id${i}`,
+					instanceUrl: INSTANCE,
+					sinceId: `s${i}`,
+					lastPolledAt: i, // deterministic order: id0 polled first
+					done: false,
+				},
+			]),
+		);
+		mockFetchAccountStatuses.mockRejectedValue(new RateLimitError(60_000));
+
+		const res = await pollFeed({ instanceUrl: INSTANCE, accessToken: "tok" });
+
+		expect(res.rateLimitedUntil).toBeDefined();
+		// At most the initial concurrency window of requests went out; the rest
+		// were skipped after the 429.
+		expect(mockFetchAccountStatuses.mock.calls.length).toBeLessThan(5);
 	});
 });
