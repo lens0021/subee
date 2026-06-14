@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.1](https://github.com/chaotic-ground/subee/compare/v0.10.0...v0.10.1) (2026-06-14)
+
+
+### Bug Fixes
+
+* address static-analysis bugs (Android native) ([88292c7](https://github.com/chaotic-ground/subee/commit/88292c7fde7087c3bdf8053bba80d5c5bec0b54f))
+* address static-analysis bugs (web) ([300e8d7](https://github.com/chaotic-ground/subee/commit/300e8d71afd21048dc6b94c65c673a62cfec99bb))
+
 ## [0.10.0](https://github.com/chaotic-ground/subee/compare/v0.9.2...v0.10.0) (2026-06-14)
 
 
