@@ -1,10 +1,10 @@
 import type { RefObject } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
 import { usePublicTimeline } from "../hooks/usePublicTimeline";
+import { useRestoreScrollAnchor } from "../hooks/useRestoreScrollAnchor";
 import type { ScrollAnchor } from "../types";
-import { restoreScrollAnchor } from "./restoreScrollAnchor";
 
 interface PublicPageProps {
 	instanceUrl: string;
@@ -34,16 +34,12 @@ export function PublicPage({
 		fetchMore();
 	}, [fetchMore]);
 
-	// Restore scroll once after the first batch of posts loads
-	const restoredRef = useRef(false);
-	useEffect(() => {
-		if (restoredRef.current || loading || posts.length === 0) return;
-		if (!initialAnchor.id) return;
-		const el = scrollContainerRef.current;
-		if (!el) return;
-		restoredRef.current = true;
-		restoreScrollAnchor(el, initialAnchor);
-	}, [loading, posts.length, initialAnchor, scrollContainerRef]);
+	useRestoreScrollAnchor(
+		scrollContainerRef,
+		initialAnchor,
+		loading,
+		posts.length,
+	);
 
 	return (
 		<>

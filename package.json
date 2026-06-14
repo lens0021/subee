@@ -11,8 +11,6 @@
 		"html-react-parser": "^5.2.17",
 		"localforage": "^1.10.0",
 		"lodash": "^4.17.21",
-		"masto": "^7.3.0",
-		"misskey-js": "^2026.1.0-beta.0",
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",
 		"react-lazy-load-image-component": "^1.6.2"
@@ -46,6 +44,8 @@
 		"@vitejs/plugin-react": "^4.7.0",
 		"jsdom": "^28.1.0",
 		"lefthook": "^2.1.4",
+		"masto": "^7.3.0",
+		"misskey-js": "^2026.1.0-beta.0",
 		"tailwindcss": "^4.1.2",
 		"typescript": "^5.9.3",
 		"vite": "^7.3.1",

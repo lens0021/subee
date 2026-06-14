@@ -9,9 +9,9 @@ import {
 } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
 import { PULL_THRESHOLD, usePullToRefresh } from "../hooks/usePullToRefresh";
+import { useRestoreScrollAnchor } from "../hooks/useRestoreScrollAnchor";
 import { useSubscribedFeed } from "../hooks/useSubscribedFeed";
 import type { ScrollAnchor } from "../types";
-import { restoreScrollAnchor } from "./restoreScrollAnchor";
 
 interface SubscribedPageProps {
 	handles: Set<string>;
@@ -101,16 +101,12 @@ export function SubscribedPage({
 	// Initial load is driven by useSubscribedFeed (auto-loads uninitialized
 	// accounts, including after importing subscriptions).
 
-	// Restore scroll once after the first batch of posts loads
-	const restoredRef = useRef(false);
-	useEffect(() => {
-		if (restoredRef.current || loading || posts.length === 0) return;
-		if (!initialAnchor.id) return;
-		const el = scrollContainerRef.current;
-		if (!el) return;
-		restoredRef.current = true;
-		restoreScrollAnchor(el, initialAnchor);
-	}, [loading, posts.length, initialAnchor, scrollContainerRef]);
+	useRestoreScrollAnchor(
+		scrollContainerRef,
+		initialAnchor,
+		loading,
+		posts.length,
+	);
 
 	if (handles.size === 0) {
 		return (
