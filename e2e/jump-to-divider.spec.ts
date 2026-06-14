@@ -98,10 +98,10 @@ test("floating button jumps to the New posts divider by scroll position", async 
 	await page.waitForTimeout(400);
 	await expect(sub.getByTestId("fab-jump")).toBeVisible();
 
-	// Tap jump → the divider becomes visible → inline refresh, no floating button.
+	// Tap jump → the divider becomes visible → the jump button is gone and the
+	// floating Refresh is shown again (there is no inline button anymore).
 	await sub.getByTestId("fab-jump").click();
 	await page.waitForTimeout(800);
-	await expect(sub.getByTestId("divider-refresh")).toBeVisible();
-	await expect(sub.getByTestId("fab-refresh")).toHaveCount(0);
 	await expect(sub.getByTestId("fab-jump")).toHaveCount(0);
+	await expect(sub.getByTestId("fab-refresh")).toBeVisible();
 });

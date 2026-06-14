@@ -1,3 +1,5 @@
+import { faArrowsRotate } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { AccountStatusGrid } from "../components/AccountStatusGrid";
@@ -6,6 +8,7 @@ import {
 	FloatingRefreshButton,
 } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
+import { PULL_THRESHOLD, usePullToRefresh } from "../hooks/usePullToRefresh";
 import { useSubscribedFeed } from "../hooks/useSubscribedFeed";
 import type { ScrollAnchor } from "../types";
 import { restoreScrollAnchor } from "./restoreScrollAnchor";
@@ -45,6 +48,13 @@ export function SubscribedPage({
 
 	const dividerRef = useRef<HTMLElement | null>(null);
 
+	// Pull down at the top of the feed to poll (replaces the old inline refresh
+	// button above the divider).
+	const { pullDistance, armed } = usePullToRefresh(
+		scrollContainerRef,
+		triggerPoll,
+	);
+
 	useEffect(() => {
 		if (!dividerPostId) return;
 		requestAnimationFrame(() =>
@@ -58,7 +68,7 @@ export function SubscribedPage({
 	// Track scroll position for two affordances:
 	// - the status grid shows only at the very top (so it never covers reading);
 	// - the "New posts" divider's position relative to the viewport drives the
-	//   refresh/jump affordances (see FloatingRefreshButton / the inline button).
+	//   floating jump button (see FloatingRefreshButton).
 	const [atTop, setAtTop] = useState(true);
 	const [dividerState, setDividerState] = useState<DividerState>("none");
 	useEffect(() => {
@@ -118,6 +128,22 @@ export function SubscribedPage({
 
 	return (
 		<>
+			{pullDistance > 0 && (
+				<div
+					data-testid="pull-indicator"
+					className="fixed top-16 inset-x-0 z-30 mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-gray-700/90 text-gray-100 shadow backdrop-blur-sm"
+					style={{
+						transform: `translateY(${pullDistance}px)`,
+						opacity: Math.min(1, pullDistance / PULL_THRESHOLD),
+					}}
+				>
+					<FontAwesomeIcon
+						icon={faArrowsRotate}
+						className={armed ? "text-blue-300" : ""}
+						style={{ transform: `rotate(${pullDistance * 3}deg)` }}
+					/>
+				</div>
+			)}
 			<FloatingRefreshButton
 				onPoll={triggerPoll}
 				onRefresh={flushBuffer}
@@ -148,7 +174,6 @@ export function SubscribedPage({
 				onDividerRef={(el) => {
 					dividerRef.current = el;
 				}}
-				onDividerRefresh={triggerPoll}
 			/>
 		</>
 	);

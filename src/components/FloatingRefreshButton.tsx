@@ -19,14 +19,20 @@ interface FloatingRefreshButtonProps {
 	stagedCount?: number;
 	pollProgress?: PollProgress | null;
 	lastPollTime?: number | null;
-	// Drives the idle button: when the divider is visible an inline refresh in
-	// the feed handles it (no floating button); when it's scrolled above the
+	// Drives the idle button: when the "New posts" divider is scrolled above the
 	// viewport the button jumps to it; otherwise it offers a refresh.
 	dividerState?: DividerState;
 	onJump?: () => void;
 }
 
-const PILL = "fixed top-16 left-1/2 -translate-x-1/2 z-30";
+// Centered via mx-auto + w-fit (not -translate-x-1/2) so the buttons are free
+// to use `active:scale-95` for a clear pressed state without fighting the
+// centering transform.
+const PILL = "fixed top-16 inset-x-0 z-30 mx-auto w-fit";
+
+// Shared press feedback: a quick darken + shrink so a tap is obviously
+// registered (touch has no :hover). touch-manipulation drops the tap delay.
+const PRESS = "transition duration-100 touch-manipulation select-none";
 
 export function FloatingRefreshButton({
 	onRefresh,
@@ -64,7 +70,7 @@ export function FloatingRefreshButton({
 				type="button"
 				data-testid="fab-new"
 				onClick={onRefresh}
-				className={`${PILL} bg-blue-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium hover:bg-blue-600 transition-colors`}
+				className={`${PILL} ${PRESS} bg-blue-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium hover:bg-blue-600 active:bg-blue-700 active:scale-95`}
 			>
 				<FontAwesomeIcon icon={faArrowUp} />
 				{stagedCount} new
@@ -72,17 +78,13 @@ export function FloatingRefreshButton({
 		);
 	}
 
-	// The divider is on screen — the inline refresh above it (in the feed) is the
-	// refresh affordance, so no floating button.
-	if (dividerState === "visible") return null;
-
 	if (dividerState === "above" && onJump) {
 		return (
 			<button
 				type="button"
 				data-testid="fab-jump"
 				onClick={onJump}
-				className={`${PILL} bg-gray-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium hover:bg-gray-700 transition-colors`}
+				className={`${PILL} ${PRESS} bg-gray-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium hover:bg-gray-700 active:bg-gray-800 active:scale-95`}
 			>
 				<FontAwesomeIcon icon={faArrowUp} />
 				New posts
@@ -95,7 +97,7 @@ export function FloatingRefreshButton({
 			type="button"
 			data-testid="fab-refresh"
 			onClick={onPoll}
-			className={`${PILL} bg-gray-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium hover:bg-gray-700 transition-colors`}
+			className={`${PILL} ${PRESS} bg-gray-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium hover:bg-gray-700 active:bg-gray-800 active:scale-95`}
 		>
 			<FontAwesomeIcon icon={faArrowUp} />
 			Refresh{lastPollTime ? ` · checked ${relativeTime(lastPollTime)}` : ""}

@@ -39,7 +39,6 @@ interface PostListProps {
 	excludeSubscribed?: boolean;
 	dividerPostId?: string | null;
 	onDividerRef?: (el: HTMLElement | null) => void;
-	onDividerRefresh?: () => void;
 }
 
 function ProgressBar({ progress }: { progress: FeedProgress }) {
@@ -82,7 +81,6 @@ export function PostList({
 	excludeSubscribed,
 	dividerPostId,
 	onDividerRef,
-	onDividerRefresh,
 }: PostListProps) {
 	useInfiniteScroll(onLoadMore, scrollContainerRef);
 
@@ -127,28 +125,14 @@ export function PostList({
 				return (
 					<PostCardErrorBoundary key={status.id}>
 						{dividerPostId === status.id && (
-							<>
-								{onDividerRefresh && (
-									<div className="flex justify-center py-2">
-										<button
-											type="button"
-											data-testid="divider-refresh"
-											onClick={onDividerRefresh}
-											className="text-xs px-3 py-1 rounded-full border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-										>
-											Refresh
-										</button>
-									</div>
-								)}
-								<div
-									ref={onDividerRef}
-									className="flex items-center gap-3 px-4 py-2 text-xs text-blue-400 select-none"
-								>
-									<div className="flex-1 h-px bg-blue-300 dark:bg-blue-700" />
-									<span>New posts</span>
-									<div className="flex-1 h-px bg-blue-300 dark:bg-blue-700" />
-								</div>
-							</>
+							<div
+								ref={onDividerRef}
+								className="flex items-center gap-3 px-4 py-2 text-xs text-blue-400 select-none"
+							>
+								<div className="flex-1 h-px bg-blue-300 dark:bg-blue-700" />
+								<span>New posts</span>
+								<div className="flex-1 h-px bg-blue-300 dark:bg-blue-700" />
+							</div>
 						)}
 						<div
 							data-post-id={status.id}
