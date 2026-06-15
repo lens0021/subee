@@ -25,10 +25,6 @@ import { concurrent, FEED_CONCURRENCY } from "../sync/concurrent";
 import { pollFeed } from "../sync/pollFeed";
 
 const FLUSH_EVERY = 20; // update UI after every N accounts complete
-// On app open / foreground-resume, poll once if the last poll is older than
-// this, staging new posts as "N new". Avoids re-polling on quick reopens so we
-// stay gentle on the home instance (one round, the same as a manual Refresh).
-const AUTO_POLL_STALE_MS = 5 * 60_000;
 
 export interface PollProgress {
 	done: number;
@@ -48,6 +44,10 @@ export function useSubscribedFeed(
 	accessToken: string,
 ) {
 	const [posts, setPosts] = useState<mastodon.v1.Status[]>([]);
+	// Timestamp of the most recent poll (background or manual); drives the
+	// "checked Xm ago" label. Declared here so the mount effect below can seed it
+	// from the cursor cache.
+	const [lastPollTime, setLastPollTime] = useState<number | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -56,10 +56,23 @@ export function useSubscribedFeed(
 			// the cache, so they appear immediately on app launch.
 			await consumeNativeSyncResults(instanceUrl);
 			const cached = await loadPostCache(instanceUrl);
-			if (cancelled || !cached || cached.length === 0) return;
+			if (cancelled) return;
 			// Only adopt cache if no posts have arrived yet (network may have
 			// raced ahead of disk read on slow IDB).
-			setPosts((prev) => (prev.length === 0 ? cached : prev));
+			if (cached && cached.length > 0)
+				setPosts((prev) => (prev.length === 0 ? cached : prev));
+			// Reflect how fresh the feed is in the "checked Xm ago" label. Read the
+			// cursor cache after consuming native results so a background sync that
+			// just delivered counts. Max-merge keeps this correct regardless of
+			// whether fetchMore's own write lands before or after this one.
+			const cursors = await loadCursorCache(instanceUrl);
+			if (cancelled || !cursors) return;
+			const maxLastPolledAt = Math.max(
+				0,
+				...cursors.map(([, c]) => c.lastPolledAt ?? 0),
+			);
+			if (maxLastPolledAt > 0)
+				setLastPollTime((prev) => Math.max(prev ?? 0, maxLastPolledAt));
 		})();
 		return () => {
 			cancelled = true;
@@ -73,7 +86,6 @@ export function useSubscribedFeed(
 	const [stagedCount, setStagedCount] = useState(0);
 	const [dividerPostId, setDividerPostId] = useState<string | null>(null);
 	const [pollProgress, setPollProgress] = useState<PollProgress | null>(null);
-	const [lastPollTime, setLastPollTime] = useState<number | null>(null);
 
 	// Always-current mirror of posts state for use inside callbacks
 	const postsRef = useRef(posts);
@@ -238,15 +250,17 @@ export function useSubscribedFeed(
 					);
 					initializedRef.current = true;
 					const maxLastPolledAt = Math.max(
+						0,
 						...[...cursorMap.values()].map((c) => c.lastPolledAt ?? 0),
 					);
-					if (maxLastPolledAt > 0) setLastPollTime(maxLastPolledAt);
+					if (maxLastPolledAt > 0)
+						setLastPollTime((prev) => Math.max(prev ?? 0, maxLastPolledAt));
 					loadingRef.current = false;
 					setLoading(false);
-					// Restoring a cached feed means the posts may be stale (e.g. the
-					// app was reopened after sleeping). Poll once so new posts land in
-					// the buffer as "N new", without starting continuous polling.
-					if (Date.now() - maxLastPolledAt > AUTO_POLL_STALE_MS) void poll();
+					// No auto-poll on open. The feed shows cached posts plus anything
+					// background sync already fetched (consumed on mount / resume);
+					// fresh posts come from background sync, pull-to-refresh, or the
+					// Refresh button. This keeps opening instant with no loading pill.
 					return;
 				}
 			}
@@ -322,13 +336,24 @@ export function useSubscribedFeed(
 			loadingRef.current = false;
 			setLoading(false);
 		}
-	}, [handles, instanceUrl, accessToken, initCursors, flush, poll]);
+	}, [handles, instanceUrl, accessToken, initCursors, flush]);
 
 	// Pull in posts the native background worker fetched while we were closed and
 	// surface them as "N new". On a cold start the mount effect already adopts
 	// them into the feed; this covers a warm resume where nothing remounts.
 	const drainNativeResults = useCallback(async () => {
 		const added = await consumeNativeSyncResults(instanceUrl);
+		// Keep the "checked Xm ago" label current even when the background poll
+		// found nothing new (it still advanced the cursors' lastPolledAt).
+		const cursors = await loadCursorCache(instanceUrl);
+		if (cursors) {
+			const maxLastPolledAt = Math.max(
+				0,
+				...cursors.map(([, c]) => c.lastPolledAt ?? 0),
+			);
+			if (maxLastPolledAt > 0)
+				setLastPollTime((prev) => Math.max(prev ?? 0, maxLastPolledAt));
+		}
 		if (added <= 0) return;
 		const cached = await loadPostCache(instanceUrl);
 		if (!cached) return;
@@ -343,19 +368,19 @@ export function useSubscribedFeed(
 		}
 	}, [instanceUrl]);
 
-	// Bringing the app back to the foreground after a while (without a cold
-	// start) should also surface new posts as "N new". Same staleness gate keeps
-	// it gentle, and poll()'s own guards prevent overlapping rounds.
+	// Returning to the foreground drains posts the background worker fetched
+	// while we were away and surfaces them as "N new". It never polls on its own
+	// — opening stays instant; fresh posts come from background sync,
+	// pull-to-refresh, or the Refresh button.
 	useEffect(() => {
 		const onVisible = () => {
 			if (document.visibilityState !== "visible") return;
 			if (!initializedRef.current) return;
 			void drainNativeResults();
-			if (Date.now() - (lastPollTime ?? 0) > AUTO_POLL_STALE_MS) poll();
 		};
 		document.addEventListener("visibilitychange", onVisible);
 		return () => document.removeEventListener("visibilitychange", onVisible);
-	}, [lastPollTime, poll, drainNativeResults]);
+	}, [drainNativeResults]);
 
 	// Load accounts that have never been fetched (e.g. importing subscriptions
 	// into an empty feed). Only runs while uninitialized, so subscribing a
