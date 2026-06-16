@@ -102,14 +102,20 @@ export async function setAuth(page: Page) {
 	await page.reload();
 }
 
-// Authenticate and subscribe to @testuser@mastodon.social, then wait for the
-// feed and let the post/cursor caches persist before any reload.
+// Authenticate and subscribe to @testuser@mastodon.social, then run the first
+// load explicitly (the app no longer auto-loads) and let the post/cursor caches
+// persist before any reload.
 export async function authAndSubscribe(page: Page) {
 	await setAuth(page);
 	await page.getByRole("button", { name: "Settings" }).click();
 	await page.getByRole("button", { name: /Subscribe to account/i }).click();
 	await page.getByRole("textbox").fill("@testuser@mastodon.social");
 	await page.getByRole("button", { name: "Add" }).click();
+	// Subscription registered → the empty feed prompts "Slide to load". Nothing
+	// loads on its own now, so tap Refresh to run the first load.
+	const sub = page.locator(CONTAINER);
+	await expect(sub.getByText("Slide to load")).toBeVisible();
+	await sub.getByTestId("fab-refresh").click();
 	await expect(page.locator("[data-post-id]").first()).toBeVisible();
 	await page.waitForTimeout(600);
 }

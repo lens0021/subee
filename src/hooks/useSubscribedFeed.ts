@@ -67,6 +67,15 @@ export function useSubscribedFeed(
 			// whether fetchMore's own write lands before or after this one.
 			const cursors = await loadCursorCache(instanceUrl);
 			if (cancelled || !cursors) return;
+			// Restore cursors from cache so an explicit refresh/poll works without
+			// re-resolving accounts. Marked `done` so nothing fetches on its own —
+			// only an explicit load (pull-to-refresh / Refresh) fetches.
+			if (cursorsRef.current.size === 0) {
+				cursorsRef.current = new Map(
+					cursors.map(([h, c]) => [h, { ...c, done: true }]),
+				);
+				if (cursors.length > 0) initializedRef.current = true;
+			}
 			const maxLastPolledAt = Math.max(
 				0,
 				...cursors.map(([, c]) => c.lastPolledAt ?? 0),
@@ -113,16 +122,23 @@ export function useSubscribedFeed(
 		});
 	}, [instanceUrl]);
 
-	const initCursors = useCallback(async () => {
-		const handlesList = [...handles];
-		const newCursors = new Map<string, AccountCursor>();
+	// Resolve account IDs for subscribed handles that don't have a cursor yet —
+	// the first load after login, or accounts added by subscribe/import. Merges
+	// into cursorsRef (never wipes existing cursors) and returns how many new
+	// accounts were resolved. Only ever called from an explicit user load.
+	const resolveMissingCursors = useCallback(async (): Promise<number> => {
+		const missing = [...handles].filter((h) => !cursorsRef.current.has(h));
+		if (missing.length === 0) return 0;
 
-		setAccountStatuses(
-			new Map(handlesList.map((h) => [h, "resolving" as AccountLoadStatus])),
-		);
+		setAccountStatuses((prev) => {
+			const next = new Map(prev);
+			for (const h of missing) next.set(h, "resolving");
+			return next;
+		});
 
+		let resolved = 0;
 		await concurrent(
-			handlesList.map((handle) => async () => {
+			missing.map((handle) => async () => {
 				const { username, instanceUrl: remoteInstanceUrl } =
 					parseHandle(handle);
 				const acct =
@@ -131,12 +147,13 @@ export function useSubscribedFeed(
 						: `${username}@${new URL(remoteInstanceUrl).hostname}`;
 				try {
 					const account = await lookupAccount(instanceUrl, acct, accessToken);
-					newCursors.set(handle, {
+					cursorsRef.current.set(handle, {
 						accountId: account.id,
 						instanceUrl,
 						handle,
 						done: false,
 					});
+					resolved++;
 					setAccountStatuses((prev) => new Map(prev).set(handle, "loading"));
 				} catch {
 					setAccountStatuses((prev) => new Map(prev).set(handle, "failed"));
@@ -145,10 +162,11 @@ export function useSubscribedFeed(
 			FEED_CONCURRENCY,
 		);
 
-		// Save tombstones for failed lookups so cache restore can pass allCovered check
-		for (const handle of handlesList) {
-			if (!newCursors.has(handle)) {
-				newCursors.set(handle, {
+		// Tombstone handles whose lookup failed so they aren't treated as pending
+		// forever (and a later cache restore still covers them).
+		for (const handle of missing) {
+			if (!cursorsRef.current.has(handle)) {
+				cursorsRef.current.set(handle, {
 					accountId: "",
 					instanceUrl,
 					handle,
@@ -157,8 +175,8 @@ export function useSubscribedFeed(
 			}
 		}
 
-		cursorsRef.current = newCursors;
 		initializedRef.current = true;
+		return resolved;
 	}, [handles, instanceUrl, accessToken]);
 
 	const poll = useCallback(async () => {
@@ -222,51 +240,13 @@ export function useSubscribedFeed(
 		setLoading(true);
 		setError(null);
 
-		let didInit = false;
-		if (!initializedRef.current) {
-			// Try to restore cursors from cache (IDB; migrates legacy localStorage)
-			const cachedCursors = await loadCursorCache(instanceUrl);
-			if (!cachedCursors) {
-				console.warn(
-					"[subee] cursor cache not found or expired for",
-					instanceUrl,
-				);
-			}
-			if (cachedCursors) {
-				const cursorMap = new Map(cachedCursors);
-				const missingHandles = [...handles].filter((h) => !cursorMap.has(h));
-				const allCovered = missingHandles.length === 0;
-				if (!allCovered) {
-					console.warn(
-						"[subee] cursor cache miss — missing handles:",
-						missingHandles,
-					);
-				}
-				if (allCovered) {
-					// Mark all cursors done so page refresh is instant with no API
-					// calls. sinceId is preserved so polling can still fetch new posts.
-					cursorsRef.current = new Map(
-						[...cursorMap.entries()].map(([h, c]) => [h, { ...c, done: true }]),
-					);
-					initializedRef.current = true;
-					const maxLastPolledAt = Math.max(
-						0,
-						...[...cursorMap.values()].map((c) => c.lastPolledAt ?? 0),
-					);
-					if (maxLastPolledAt > 0)
-						setLastPollTime((prev) => Math.max(prev ?? 0, maxLastPolledAt));
-					loadingRef.current = false;
-					setLoading(false);
-					// No auto-poll on open. The feed shows cached posts plus anything
-					// background sync already fetched (consumed on mount / resume);
-					// fresh posts come from background sync, pull-to-refresh, or the
-					// Refresh button. This keeps opening instant with no loading pill.
-					return;
-				}
-			}
-			await initCursors();
-			didInit = true;
-		}
+		// Resolve cursors for any subscribed handle without one yet (first load
+		// after login, or accounts added by subscribe/import). This is the only
+		// place resolution happens, and fetchMore only ever runs from an explicit
+		// user load (pull-to-refresh / Refresh) or infinite scroll — never on its
+		// own at app open.
+		const resolved = await resolveMissingCursors();
+		const didInit = resolved > 0;
 
 		// On the initial build into a feed that already shows posts, stage the
 		// fetched posts in the buffer ("N new") instead of inserting them while
@@ -276,7 +256,9 @@ export function useSubscribedFeed(
 		const collected: mastodon.v1.Status[] = [];
 
 		try {
-			const pending = [...cursorsRef.current.values()].filter((c) => !c.done);
+			const pending = [...cursorsRef.current.values()].filter(
+				(c) => !c.done && c.accountId,
+			);
 			if (pending.length === 0) return;
 			let completed = 0;
 
@@ -336,7 +318,7 @@ export function useSubscribedFeed(
 			loadingRef.current = false;
 			setLoading(false);
 		}
-	}, [handles, instanceUrl, accessToken, initCursors, flush]);
+	}, [instanceUrl, accessToken, resolveMissingCursors, flush]);
 
 	// Pull in posts the native background worker fetched while we were closed and
 	// surface them as "N new". On a cold start the mount effect already adopts
@@ -382,15 +364,19 @@ export function useSubscribedFeed(
 		return () => document.removeEventListener("visibilitychange", onVisible);
 	}, [drainNativeResults]);
 
-	// Load accounts that have never been fetched (e.g. importing subscriptions
-	// into an empty feed). Only runs while uninitialized, so subscribing a
-	// single account to an already-loaded feed stays lazy and is picked up on
-	// the next mount, preserving the don't-fetch-on-subscribe behavior.
-	useEffect(() => {
-		if (handles.size === 0) return;
-		if (initializedRef.current || loadingRef.current) return;
-		fetchMore();
-	}, [handles, fetchMore]);
+	// The single explicit-load entry point, wired to pull-to-refresh and the
+	// Refresh button. Nothing loads automatically at app open. If any subscribed
+	// account hasn't been loaded yet (first load after login, or a freshly
+	// subscribed/imported account) it resolves and fetches them; otherwise it
+	// polls known accounts for new posts.
+	const refresh = useCallback(async () => {
+		if (loadingRef.current || pollingRef.current) return;
+		const needLoad =
+			!initializedRef.current ||
+			[...handles].some((h) => !cursorsRef.current.has(h));
+		if (needLoad) await fetchMore();
+		else await poll();
+	}, [handles, fetchMore, poll]);
 
 	const flushBuffer = useCallback(() => {
 		if (bufferRef.current.length === 0) return;
@@ -409,7 +395,7 @@ export function useSubscribedFeed(
 		error,
 		fetchMore,
 		flushBuffer,
-		poll,
+		refresh,
 		accountStatuses,
 		stagedCount,
 		dividerPostId,

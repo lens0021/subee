@@ -38,7 +38,7 @@ export function SubscribedPage({
 		error,
 		fetchMore,
 		flushBuffer,
-		poll,
+		refresh,
 		accountStatuses,
 		stagedCount,
 		dividerPostId,
@@ -48,9 +48,10 @@ export function SubscribedPage({
 
 	const dividerRef = useRef<HTMLElement | null>(null);
 
-	// Pull down at the top of the feed to poll (replaces the old inline refresh
-	// button above the divider).
-	const { pullDistance, armed } = usePullToRefresh(scrollContainerRef, poll);
+	// Pull down at the top of the feed to load/refresh. Nothing loads on its own
+	// — this gesture (and the Refresh button) are the only way the feed loads:
+	// the first load after login, newly added accounts, and new-post polling.
+	const { pullDistance, armed } = usePullToRefresh(scrollContainerRef, refresh);
 
 	useEffect(() => {
 		if (!dividerPostId) return;
@@ -138,7 +139,7 @@ export function SubscribedPage({
 				</div>
 			)}
 			<FloatingRefreshButton
-				onPoll={poll}
+				onPoll={refresh}
 				onRefresh={flushBuffer}
 				stagedCount={stagedCount}
 				pollProgress={pollProgress}
@@ -152,22 +153,31 @@ export function SubscribedPage({
 				}
 			/>
 			{showGrid && <AccountStatusGrid statuses={accountStatuses} />}
-			<PostList
-				posts={posts}
-				loading={loading}
-				error={error}
-				onLoadMore={fetchMore}
-				onRefresh={flushBuffer}
-				onSubscribe={onSubscribe}
-				isSubscribed={isSubscribed}
-				instanceUrl={instanceUrl}
-				accessToken={accessToken}
-				scrollContainerRef={scrollContainerRef}
-				dividerPostId={dividerPostId}
-				onDividerRef={(el) => {
-					dividerRef.current = el;
-				}}
-			/>
+			{posts.length === 0 && !loading ? (
+				<div className="p-8 text-center text-gray-400">
+					<p className="text-lg font-medium mb-2">Slide to load</p>
+					<p className="text-sm">
+						Pull down or tap Refresh to load your feed.
+					</p>
+				</div>
+			) : (
+				<PostList
+					posts={posts}
+					loading={loading}
+					error={error}
+					onLoadMore={fetchMore}
+					onRefresh={flushBuffer}
+					onSubscribe={onSubscribe}
+					isSubscribed={isSubscribed}
+					instanceUrl={instanceUrl}
+					accessToken={accessToken}
+					scrollContainerRef={scrollContainerRef}
+					dividerPostId={dividerPostId}
+					onDividerRef={(el) => {
+						dividerRef.current = el;
+					}}
+				/>
+			)}
 		</>
 	);
 }
