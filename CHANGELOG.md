@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.3](https://github.com/chaotic-ground/subee/compare/v0.10.2...v0.10.3) (2026-06-16)
+
+
+### Bug Fixes
+
+* never load the feed implicitly; load only on pull-to-refresh/Refresh ([d2a0070](https://github.com/chaotic-ground/subee/commit/d2a00706f8a5006f2e423d9409f78e169969fd63))
+
 ## [0.10.2](https://github.com/chaotic-ground/subee/compare/v0.10.1...v0.10.2) (2026-06-15)
 
 
