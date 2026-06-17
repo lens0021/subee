@@ -43,7 +43,7 @@ export function PublicPage({
 
 	return (
 		<>
-			<FloatingRefreshButton onRefresh={refresh} />
+			<FloatingRefreshButton onRefresh={refresh} idleRefresh />
 			<PostList
 				posts={posts}
 				excludeSubscribed={excludeSubscribed}

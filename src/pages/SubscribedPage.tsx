@@ -3,10 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { AccountStatusGrid } from "../components/AccountStatusGrid";
-import {
-	type DividerState,
-	FloatingRefreshButton,
-} from "../components/FloatingRefreshButton";
+import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
 import { PostList } from "../components/PostList";
 import { PULL_THRESHOLD, usePullToRefresh } from "../hooks/usePullToRefresh";
 import { useRestoreScrollAnchor } from "../hooks/useRestoreScrollAnchor";
@@ -43,12 +40,9 @@ export function SubscribedPage({
 		stagedCount,
 		dividerPostId,
 		pollProgress,
-		lastPollTime,
 		flushNonce,
 		unloadedCount,
 	} = useSubscribedFeed(handles, instanceUrl, accessToken);
-
-	const dividerRef = useRef<HTMLElement | null>(null);
 
 	// Pull down at the top of the feed to load/refresh. Nothing loads on its own
 	// — this gesture (and the Refresh button) are the only way the feed loads:
@@ -59,7 +53,7 @@ export function SubscribedPage({
 	// posts are what the user lands on; the divider stays as the seam below them.
 	// The mount-seeded boundary divider (cold start after background sync) bumps
 	// no nonce, so it never triggers this scroll — it marks the boundary in place
-	// and the floating "Jump to new" button takes the user there on demand.
+	// and the user scrolls up to it (or taps the back-to-top button) on demand.
 	const lastFlushNonce = useRef(flushNonce);
 	useEffect(() => {
 		if (flushNonce === lastFlushNonce.current) return;
@@ -69,31 +63,23 @@ export function SubscribedPage({
 		);
 	}, [flushNonce, scrollContainerRef]);
 
-	// Track scroll position for two affordances:
-	// - the status grid shows only at the very top (so it never covers reading);
-	// - the "New posts" divider's position relative to the viewport drives the
-	//   floating jump button (see FloatingRefreshButton).
+	// Track scroll position for the floating button and the status grid:
+	// - the status grid and the top-of-feed signals show only at the very top
+	//   (so they never cover reading);
+	// - once a full screen down, the floating button becomes a back-to-top jump.
 	const [atTop, setAtTop] = useState(true);
-	const [dividerState, setDividerState] = useState<DividerState>("none");
+	const [scrolledDown, setScrolledDown] = useState(false);
 	useEffect(() => {
 		const el = scrollContainerRef.current;
 		if (!el) return;
 		const onScroll = () => {
 			setAtTop(el.scrollTop < 4);
-			const divider = dividerRef.current;
-			if (!dividerPostId || !divider) {
-				setDividerState("none");
-				return;
-			}
-			const top = el.scrollTop;
-			const bottom = top + el.clientHeight;
-			const d = divider.offsetTop;
-			setDividerState(d < top ? "above" : d > bottom ? "below" : "visible");
+			setScrolledDown(el.scrollTop > el.clientHeight);
 		};
 		onScroll();
 		el.addEventListener("scroll", onScroll, { passive: true });
 		return () => el.removeEventListener("scroll", onScroll);
-	}, [scrollContainerRef, dividerPostId]);
+	}, [scrollContainerRef]);
 	// The per-account dots are an initial-load / failure indicator only. A
 	// background poll over an already-loaded feed flips accounts to "loading"
 	// too, but must not show the dots there — it would look like a full reload
@@ -150,12 +136,12 @@ export function SubscribedPage({
 				stagedCount={stagedCount}
 				unloadedCount={unloadedCount}
 				pollProgress={pollProgress}
-				lastPollTime={lastPollTime}
-				dividerState={dividerState}
-				onJump={() =>
-					dividerRef.current?.scrollIntoView({
+				atTop={atTop}
+				scrolledDown={scrolledDown}
+				onScrollTop={() =>
+					scrollContainerRef.current?.scrollTo({
+						top: 0,
 						behavior: "smooth",
-						block: "center",
 					})
 				}
 			/>
@@ -180,9 +166,6 @@ export function SubscribedPage({
 					accessToken={accessToken}
 					scrollContainerRef={scrollContainerRef}
 					dividerPostId={dividerPostId}
-					onDividerRef={(el) => {
-						dividerRef.current = el;
-					}}
 				/>
 			)}
 		</>

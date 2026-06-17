@@ -44,10 +44,6 @@ export function useSubscribedFeed(
 	accessToken: string,
 ) {
 	const [posts, setPosts] = useState<mastodon.v1.Status[]>([]);
-	// Timestamp of the most recent poll (background or manual); drives the
-	// "checked Xm ago" label. Declared here so the mount effect below can seed it
-	// from the cursor cache.
-	const [lastPollTime, setLastPollTime] = useState<number | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -86,12 +82,6 @@ export function useSubscribedFeed(
 					);
 					if (cursors.length > 0) initializedRef.current = true;
 				}
-				const maxLastPolledAt = Math.max(
-					0,
-					...cursors.map(([, c]) => c.lastPolledAt ?? 0),
-				);
-				if (maxLastPolledAt > 0)
-					setLastPollTime((prev) => Math.max(prev ?? 0, maxLastPolledAt));
 			}
 			// Cursors are as-restored-as-they'll-get (the cache is empty on a first
 			// login). Only now is the unloaded-account count trustworthy — compute
@@ -264,7 +254,6 @@ export function useSubscribedFeed(
 		} finally {
 			pollingRef.current = false;
 			setPollProgress(null);
-			setLastPollTime(Date.now());
 		}
 	}, [instanceUrl, accessToken]);
 
@@ -367,17 +356,6 @@ export function useSubscribedFeed(
 	// them into the feed; this covers a warm resume where nothing remounts.
 	const drainNativeResults = useCallback(async () => {
 		const { added } = await consumeNativeSyncResults(instanceUrl);
-		// Keep the "checked Xm ago" label current even when the background poll
-		// found nothing new (it still advanced the cursors' lastPolledAt).
-		const cursors = await loadCursorCache(instanceUrl);
-		if (cursors) {
-			const maxLastPolledAt = Math.max(
-				0,
-				...cursors.map(([, c]) => c.lastPolledAt ?? 0),
-			);
-			if (maxLastPolledAt > 0)
-				setLastPollTime((prev) => Math.max(prev ?? 0, maxLastPolledAt));
-		}
 		if (added <= 0) return;
 		const cached = await loadPostCache(instanceUrl);
 		if (!cached) return;
@@ -457,7 +435,6 @@ export function useSubscribedFeed(
 		stagedCount,
 		dividerPostId,
 		pollProgress,
-		lastPollTime,
 		flushNonce,
 		unloadedCount,
 	};
