@@ -227,9 +227,16 @@ export default function App() {
 		logout();
 	};
 
-	const handleImportConfirm = async (text: string) => {
-		const newHandles = importHandles(text);
-		await replaceAll(newHandles);
+	const handleImportConfirm = async (
+		text: string,
+		mode: "merge" | "replace",
+	) => {
+		const incoming = importHandles(text);
+		// Merge (the default) unions with the existing list so an import can't
+		// silently wipe subscriptions; Replace is the explicit destructive choice.
+		const next =
+			mode === "merge" ? new Set([...handles, ...incoming]) : incoming;
+		await replaceAll(next);
 		setShowImport(false);
 	};
 
@@ -288,6 +295,7 @@ export default function App() {
 			)}
 			{showImport && (
 				<ImportOverlay
+					currentCount={handles.size}
 					onConfirm={handleImportConfirm}
 					onCancel={() => setShowImport(false)}
 				/>
