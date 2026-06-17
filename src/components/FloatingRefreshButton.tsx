@@ -7,7 +7,11 @@ function relativeTime(ts: number): string {
 	const sec = Math.floor((Date.now() - ts) / 1000);
 	if (sec < 60) return "just now";
 	if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
-	return `${Math.floor(sec / 3600)}h ago`;
+	if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+	// Past a day, hours read as a malfunction ("checked 72h ago") right when the
+	// app-after-a-long-time case matters most — bucket into days/weeks.
+	if (sec < 604800) return `${Math.floor(sec / 86400)}d ago`;
+	return `${Math.floor(sec / 604800)}w ago`;
 }
 
 // Position of the "New posts" divider relative to the viewport.
@@ -17,6 +21,9 @@ interface FloatingRefreshButtonProps {
 	onPoll?: () => void;
 	onRefresh: () => void;
 	stagedCount?: number;
+	// Subscribed accounts not yet loaded (first login, or freshly subscribed/
+	// imported). When > 0 the idle button advertises the pending load.
+	unloadedCount?: number;
 	pollProgress?: PollProgress | null;
 	lastPollTime?: number | null;
 	// Drives the idle button: when the "New posts" divider is scrolled above the
@@ -38,6 +45,7 @@ export function FloatingRefreshButton({
 	onRefresh,
 	onPoll = onRefresh,
 	stagedCount = 0,
+	unloadedCount = 0,
 	pollProgress = null,
 	lastPollTime = null,
 	dividerState = "none",
@@ -90,8 +98,10 @@ export function FloatingRefreshButton({
 		>
 			<FontAwesomeIcon icon={faArrowUp} />
 			{isJump
-				? "New posts"
-				: `Refresh${lastPollTime ? ` · checked ${relativeTime(lastPollTime)}` : ""}`}
+				? "Jump to new"
+				: unloadedCount > 0
+					? `Load ${unloadedCount} account${unloadedCount > 1 ? "s" : ""}`
+					: `Refresh${lastPollTime ? ` · synced ${relativeTime(lastPollTime)}` : ""}`}
 		</button>
 	);
 }

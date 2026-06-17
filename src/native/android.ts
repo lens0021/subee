@@ -101,26 +101,41 @@ interface NativeSyncResults {
 	cursors?: { handle: string; sinceId?: string; lastPolledAt?: number }[];
 }
 
+export interface NativeSyncImport {
+	/** Posts not previously cached. */
+	added: number;
+	/**
+	 * Id of the newest post that was already cached before this merge — the read
+	 * boundary. Newly delivered posts sort above it, so a divider seeded here
+	 * separates the new posts from already-seen ones. Null when there was no
+	 * prior content (nothing to separate) or nothing new arrived.
+	 */
+	boundaryId: string | null;
+}
+
 /**
  * Import posts and cursor advances accumulated by native background polling
- * into the web-side caches. Returns the number of posts not previously cached.
+ * into the web-side caches. Returns how many posts were new and the read
+ * boundary (previously-newest cached post id) so callers can mark where the
+ * new posts begin.
  */
 export async function consumeNativeSyncResults(
 	instanceUrl: string,
-): Promise<number> {
+): Promise<NativeSyncImport> {
 	const b = bridge();
-	if (!b) return 0;
+	if (!b) return { added: 0, boundaryId: null };
 
 	let parsed: NativeSyncResults;
 	try {
 		const raw = b.consumeSyncResults();
-		if (!raw) return 0;
+		if (!raw) return { added: 0, boundaryId: null };
 		parsed = JSON.parse(raw) as NativeSyncResults;
 	} catch {
-		return 0;
+		return { added: 0, boundaryId: null };
 	}
 
 	let added = 0;
+	let boundaryId: string | null = null;
 	const rawPosts = parsed.posts ?? [];
 	if (rawPosts.length > 0) {
 		// Native stores raw snake_case API responses
@@ -128,6 +143,8 @@ export async function consumeNativeSyncResults(
 		const existing = (await loadPostCache(instanceUrl)) ?? [];
 		const known = new Set(existing.map((p) => p.id));
 		added = posts.filter((p) => !known.has(p.id)).length;
+		// Cache is newest-first; its head is the previously-newest seen post.
+		if (added > 0) boundaryId = existing[0]?.id ?? null;
 		await savePostCache(
 			instanceUrl,
 			mergePosts(existing, posts, MAX_CACHED_POSTS),
@@ -159,5 +176,5 @@ export async function consumeNativeSyncResults(
 		}
 	}
 
-	return added;
+	return { added, boundaryId };
 }

@@ -54,34 +54,55 @@ export function useSubscribedFeed(
 		(async () => {
 			// Pull in posts fetched by native background polling before reading
 			// the cache, so they appear immediately on app launch.
-			await consumeNativeSyncResults(instanceUrl);
+			const { added, boundaryId } =
+				await consumeNativeSyncResults(instanceUrl);
 			const cached = await loadPostCache(instanceUrl);
 			if (cancelled) return;
 			// Only adopt cache if no posts have arrived yet (network may have
 			// raced ahead of disk read on slow IDB).
 			if (cached && cached.length > 0)
 				setPosts((prev) => (prev.length === 0 ? cached : prev));
+			// Background sync delivered new posts before this cold start — the
+			// common "tapped the notification after hours away" case. Mark the read
+			// boundary at the previously-newest post so the user sees where the new
+			// posts end and already-seen ones begin: the same seam a manual flush
+			// draws, but seeded at mount with no network load. SubscribedPage shows
+			// it in place (no auto-scroll) and offers a "Jump to new" button.
+			if (added > 0 && boundaryId)
+				setDividerPostId((prev) => prev ?? boundaryId);
 			// Reflect how fresh the feed is in the "checked Xm ago" label. Read the
 			// cursor cache after consuming native results so a background sync that
 			// just delivered counts. Max-merge keeps this correct regardless of
 			// whether fetchMore's own write lands before or after this one.
 			const cursors = await loadCursorCache(instanceUrl);
-			if (cancelled || !cursors) return;
-			// Restore cursors from cache so an explicit refresh/poll works without
-			// re-resolving accounts. Marked `done` so nothing fetches on its own —
-			// only an explicit load (pull-to-refresh / Refresh) fetches.
-			if (cursorsRef.current.size === 0) {
-				cursorsRef.current = new Map(
-					cursors.map(([h, c]) => [h, { ...c, done: true }]),
+			if (cancelled) return;
+			if (cursors) {
+				// Restore cursors from cache so an explicit refresh/poll works without
+				// re-resolving accounts. Marked `done` so nothing fetches on its own —
+				// only an explicit load (pull-to-refresh / Refresh) fetches.
+				if (cursorsRef.current.size === 0) {
+					cursorsRef.current = new Map(
+						cursors.map(([h, c]) => [h, { ...c, done: true }]),
+					);
+					if (cursors.length > 0) initializedRef.current = true;
+				}
+				const maxLastPolledAt = Math.max(
+					0,
+					...cursors.map(([, c]) => c.lastPolledAt ?? 0),
 				);
-				if (cursors.length > 0) initializedRef.current = true;
+				if (maxLastPolledAt > 0)
+					setLastPollTime((prev) => Math.max(prev ?? 0, maxLastPolledAt));
 			}
-			const maxLastPolledAt = Math.max(
-				0,
-				...cursors.map(([, c]) => c.lastPolledAt ?? 0),
+			// Cursors are as-restored-as-they'll-get (the cache is empty on a first
+			// login). Only now is the unloaded-account count trustworthy — compute
+			// it and let the [handles] effect maintain it from here. Gating on this
+			// flag avoids flashing "Load N accounts" on a normal reopen before the
+			// cursor cache has finished loading.
+			cursorsRestoredRef.current = true;
+			setUnloadedCount(
+				[...handlesRef.current].filter((h) => !cursorsRef.current.has(h))
+					.length,
 			);
-			if (maxLastPolledAt > 0)
-				setLastPollTime((prev) => Math.max(prev ?? 0, maxLastPolledAt));
 		})();
 		return () => {
 			cancelled = true;
@@ -95,10 +116,25 @@ export function useSubscribedFeed(
 	const [stagedCount, setStagedCount] = useState(0);
 	const [dividerPostId, setDividerPostId] = useState<string | null>(null);
 	const [pollProgress, setPollProgress] = useState<PollProgress | null>(null);
+	// Bumped only by a user-initiated flush ("N new" tap) so SubscribedPage can
+	// scroll to the newest post — distinct from the mount-seeded boundary divider,
+	// which must mark its place without scrolling.
+	const [flushNonce, setFlushNonce] = useState(0);
+	// Subscribed accounts that have no cursor yet (first login, or a freshly
+	// subscribed/imported account) — i.e. would be loaded by the next refresh().
+	const [unloadedCount, setUnloadedCount] = useState(0);
 
 	// Always-current mirror of posts state for use inside callbacks
 	const postsRef = useRef(posts);
 	postsRef.current = posts;
+	// Mirror of the subscribed handles so the mount effect and fetchMore can
+	// recompute unloadedCount without widening their dependency lists.
+	const handlesRef = useRef(handles);
+	handlesRef.current = handles;
+	// True once the mount effect has restored (or found no) cursors, so the
+	// unloaded-account count reflects real cursor state rather than the pre-load
+	// emptiness.
+	const cursorsRestoredRef = useRef(false);
 
 	const cursorsRef = useRef<Map<string, AccountCursor>>(new Map());
 	const initializedRef = useRef(false);
@@ -315,6 +351,12 @@ export function useSubscribedFeed(
 		} finally {
 			await saveCursorCache(instanceUrl, [...cursorsRef.current.entries()]);
 			void pushNativeSyncState(instanceUrl, accessToken);
+			// Resolution ran for the missing accounts — refresh the count so the
+			// "Load N accounts" cue clears once they're loaded.
+			setUnloadedCount(
+				[...handlesRef.current].filter((h) => !cursorsRef.current.has(h))
+					.length,
+			);
 			loadingRef.current = false;
 			setLoading(false);
 		}
@@ -324,7 +366,7 @@ export function useSubscribedFeed(
 	// surface them as "N new". On a cold start the mount effect already adopts
 	// them into the feed; this covers a warm resume where nothing remounts.
 	const drainNativeResults = useCallback(async () => {
-		const added = await consumeNativeSyncResults(instanceUrl);
+		const { added } = await consumeNativeSyncResults(instanceUrl);
 		// Keep the "checked Xm ago" label current even when the background poll
 		// found nothing new (it still advanced the cursors' lastPolledAt).
 		const cursors = await loadCursorCache(instanceUrl);
@@ -364,6 +406,17 @@ export function useSubscribedFeed(
 		return () => document.removeEventListener("visibilitychange", onVisible);
 	}, [drainNativeResults]);
 
+	// Keep the unloaded-account count fresh when subscriptions change (a
+	// subscribe/import adds handles with no cursor yet). Cursor-side changes
+	// (mount restore, fetchMore) update it imperatively. Skip until the mount
+	// effect has settled cursor state so a reopen doesn't flash "Load N".
+	useEffect(() => {
+		if (!cursorsRestoredRef.current) return;
+		setUnloadedCount(
+			[...handles].filter((h) => !cursorsRef.current.has(h)).length,
+		);
+	}, [handles]);
+
 	// The single explicit-load entry point, wired to pull-to-refresh and the
 	// Refresh button. Nothing loads automatically at app open. If any subscribed
 	// account hasn't been loaded yet (first load after login, or a freshly
@@ -387,6 +440,10 @@ export function useSubscribedFeed(
 		setStagedCount(0);
 		flush();
 		if (prevTopId) setDividerPostId(prevTopId);
+		// Tell SubscribedPage to scroll to the newest post — the user asked to see
+		// the new posts. (The mount-seeded boundary divider leaves this untouched,
+		// so a cold-start open never auto-scrolls.)
+		setFlushNonce((n) => n + 1);
 	}, [flush]);
 
 	return {
@@ -401,5 +458,7 @@ export function useSubscribedFeed(
 		dividerPostId,
 		pollProgress,
 		lastPollTime,
+		flushNonce,
+		unloadedCount,
 	};
 }

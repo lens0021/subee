@@ -44,6 +44,8 @@ export function SubscribedPage({
 		dividerPostId,
 		pollProgress,
 		lastPollTime,
+		flushNonce,
+		unloadedCount,
 	} = useSubscribedFeed(handles, instanceUrl, accessToken);
 
 	const dividerRef = useRef<HTMLElement | null>(null);
@@ -53,15 +55,19 @@ export function SubscribedPage({
 	// the first load after login, newly added accounts, and new-post polling.
 	const { pullDistance, armed } = usePullToRefresh(scrollContainerRef, refresh);
 
+	// A user-initiated flush ("N new" tap) scrolls to the newest post so the new
+	// posts are what the user lands on; the divider stays as the seam below them.
+	// The mount-seeded boundary divider (cold start after background sync) bumps
+	// no nonce, so it never triggers this scroll — it marks the boundary in place
+	// and the floating "Jump to new" button takes the user there on demand.
+	const lastFlushNonce = useRef(flushNonce);
 	useEffect(() => {
-		if (!dividerPostId) return;
+		if (flushNonce === lastFlushNonce.current) return;
+		lastFlushNonce.current = flushNonce;
 		requestAnimationFrame(() =>
-			dividerRef.current?.scrollIntoView({
-				behavior: "smooth",
-				block: "center",
-			}),
+			scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" }),
 		);
-	}, [dividerPostId]);
+	}, [flushNonce, scrollContainerRef]);
 
 	// Track scroll position for two affordances:
 	// - the status grid shows only at the very top (so it never covers reading);
@@ -142,6 +148,7 @@ export function SubscribedPage({
 				onPoll={refresh}
 				onRefresh={flushBuffer}
 				stagedCount={stagedCount}
+				unloadedCount={unloadedCount}
 				pollProgress={pollProgress}
 				lastPollTime={lastPollTime}
 				dividerState={dividerState}
