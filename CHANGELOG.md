@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/chaotic-ground/subee/compare/v0.13.0...v0.13.1) (2026-06-18)
+
+
+### Bug Fixes
+
+* let the Back gesture leave the app instead of scrolling to top ([0caf79a](https://github.com/chaotic-ground/subee/commit/0caf79a5e3d0842e06869eee9cc2895c99eec330))
+
 ## [0.13.0](https://github.com/chaotic-ground/subee/compare/v0.12.0...v0.13.0) (2026-06-18)
 
 
