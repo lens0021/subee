@@ -66,7 +66,7 @@
 ### 게시물 카드
 
 - 계정 이름, 아바타, 게시 시간, 본문, 미디어, boost/favourite 수 표시.
-- **+ Subscribe / Subscribed** 버튼으로 해당 계정 구독 토글.
+- **+ Subscribe / Subscribed** 버튼으로 해당 계정 구독 토글. 액션 아이콘 옆이라 오탭 방지를 위해 구독 추가는 한 번 탭, 해제는 'Subscribed'→'Unsubscribe?'(빨강) **두 번 탭**으로 확인(arm 후 3초 지나면 자동 해제).
 - CW(content warning) 있는 게시물은 접힌 상태로 표시, "Show content"로 펼침.
 
 ## Android APK

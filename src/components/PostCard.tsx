@@ -249,6 +249,31 @@ export function PostCard({
 		reactionEmojis: Record<string, string>;
 	} | null>(null);
 
+	// Unsubscribing is destructive and the button sits among the action icons, so
+	// require a confirming second tap: the first tap on "Subscribed" arms it
+	// ("Unsubscribe?"), a second removes it. Subscribing (additive) stays one tap.
+	// The armed state self-reverts so a stray first tap doesn't linger.
+	const [confirmingUnsub, setConfirmingUnsub] = useState(false);
+	useEffect(() => {
+		if (!confirmingUnsub) return;
+		const id = setTimeout(() => setConfirmingUnsub(false), 3000);
+		return () => clearTimeout(id);
+	}, [confirmingUnsub]);
+
+	const handleSubscribeClick = () => {
+		const handle = formatHandle(actual.account);
+		if (!isSubscribed(handle)) {
+			onSubscribe(handle); // additive — one tap
+			return;
+		}
+		if (!confirmingUnsub) {
+			setConfirmingUnsub(true); // arm; a second tap confirms
+			return;
+		}
+		onSubscribe(handle); // confirmed — unsubscribe
+		setConfirmingUnsub(false);
+	};
+
 	useEffect(() => {
 		if (!actual.url) return;
 		fetchMisskeyReactions(actual.url)
@@ -393,16 +418,20 @@ export function PostCard({
 				<div className="flex items-center gap-4">
 					<button
 						type="button"
-						onClick={() => onSubscribe(formatHandle(actual.account))}
+						onClick={handleSubscribeClick}
 						className={`text-xs px-2 py-1 rounded border transition-colors ${
-							isSubscribed(formatHandle(actual.account))
-								? "bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900 dark:border-blue-700 dark:text-blue-300"
-								: "border-gray-300 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+							confirmingUnsub
+								? "bg-red-100 border-red-300 text-red-700 dark:bg-red-900 dark:border-red-700 dark:text-red-300"
+								: isSubscribed(formatHandle(actual.account))
+									? "bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900 dark:border-blue-700 dark:text-blue-300"
+									: "border-gray-300 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
 						}`}
 					>
-						{isSubscribed(formatHandle(actual.account))
-							? "Subscribed"
-							: "+ Subscribe"}
+						{confirmingUnsub
+							? "Unsubscribe?"
+							: isSubscribed(formatHandle(actual.account))
+								? "Subscribed"
+								: "+ Subscribe"}
 					</button>
 					<span className="flex items-center gap-1">
 						<FontAwesomeIcon icon={faComment} />
