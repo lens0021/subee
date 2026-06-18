@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { authAndSubscribe, CONTAINER, mockFeed } from "./helpers";
+import { mockFeed, subscribeNoLoad } from "./helpers";
 
-test("the floating Refresh button shows a pressed state on tap", async ({
-	page,
-}) => {
+test("the floating button shows a pressed state on tap", async ({ page }) => {
 	await mockFeed(page);
-	await authAndSubscribe(page);
+	// The "Load 1 account" button (testid fab-refresh) is a floating button we
+	// can press without kicking off a load.
+	const sub = await subscribeNoLoad(page);
 
-	const btn = page.locator(CONTAINER).getByTestId("fab-refresh");
+	const btn = sub.getByTestId("fab-refresh");
 	await expect(btn).toBeVisible();
 
 	// Hover (mouse over), read the (non-pressed) background.

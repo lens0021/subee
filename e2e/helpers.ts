@@ -1,8 +1,8 @@
 import { expect, type Page } from "@playwright/test";
 
 export const INSTANCE = "https://mastodon.social";
-// The active subscribed tab is the scroll container with aria-hidden="false".
-export const CONTAINER = 'div[aria-hidden="false"]';
+// The feed's scroll container.
+export const CONTAINER = '[data-testid="feed"]';
 export const BASE = Date.UTC(2026, 0, 2);
 
 export const account = {
@@ -102,20 +102,69 @@ export async function setAuth(page: Page) {
 	await page.reload();
 }
 
-// Authenticate and subscribe to @testuser@mastodon.social, then run the first
-// load explicitly (the app no longer auto-loads) and let the post/cursor caches
-// persist before any reload.
-export async function authAndSubscribe(page: Page) {
+// Authenticate and subscribe to @testuser@mastodon.social, stopping at the empty
+// "Slide to load" feed — the account is registered but not yet loaded, so the
+// floating button advertises "Load 1 account" (testid fab-refresh). Returns the
+// feed container locator.
+export async function subscribeNoLoad(page: Page) {
 	await setAuth(page);
 	await page.getByRole("button", { name: "Settings" }).click();
 	await page.getByRole("button", { name: /Subscribe to account/i }).click();
 	await page.getByRole("textbox").fill("@testuser@mastodon.social");
 	await page.getByRole("button", { name: "Add" }).click();
-	// Subscription registered → the empty feed prompts "Slide to load". Nothing
-	// loads on its own now, so tap Refresh to run the first load.
 	const sub = page.locator(CONTAINER);
 	await expect(sub.getByText("Slide to load")).toBeVisible();
+	return sub;
+}
+
+// As above, then run the first load explicitly (the app never auto-loads) and
+// let the post/cursor caches persist before any reload.
+export async function authAndSubscribe(page: Page) {
+	const sub = await subscribeNoLoad(page);
 	await sub.getByTestId("fab-refresh").click();
 	await expect(page.locator("[data-post-id]").first()).toBeVisible();
 	await page.waitForTimeout(600);
+}
+
+// Dispatch one touch event on the feed container (scrollTop pinned to 0 so the
+// pull-to-refresh gesture engages). Granular so callers can observe the
+// indicator mid-pull; pullToRefresh wraps the full past-threshold sequence.
+export async function dispatchTouch(
+	page: Page,
+	type: "touchstart" | "touchmove" | "touchend",
+	clientY: number,
+) {
+	await page.evaluate(
+		({ sel, type, clientY }) => {
+			const el = document.querySelector(sel) as HTMLElement;
+			el.scrollTop = 0;
+			const touch = new Touch({
+				identifier: 1,
+				target: el,
+				clientX: 60,
+				clientY,
+			});
+			const active = type === "touchend" ? [] : [touch];
+			el.dispatchEvent(
+				new TouchEvent(type, {
+					cancelable: true,
+					bubbles: true,
+					touches: active,
+					targetTouches: active,
+					changedTouches: [touch],
+				}),
+			);
+		},
+		{ sel: CONTAINER, type, clientY },
+	);
+}
+
+// Pull down past the threshold at the top of the feed and release — the only
+// gesture (besides "Load N accounts") that polls now that there is no idle
+// Refresh button.
+export async function pullToRefresh(page: Page) {
+	await dispatchTouch(page, "touchstart", 100);
+	await dispatchTouch(page, "touchmove", 160);
+	await dispatchTouch(page, "touchmove", 260);
+	await dispatchTouch(page, "touchend", 260);
 }

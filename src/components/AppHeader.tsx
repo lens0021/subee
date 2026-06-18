@@ -8,33 +8,24 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useEffect, useRef, useState } from "react";
 import { exportHandles } from "../store/subscriptions";
-import type { Tab } from "../types";
 
 interface AppHeaderProps {
-	activeTab: Tab;
-	onSwitch: (tab: Tab) => void;
 	handles: Set<string>;
 	instanceHostname: string;
 	onLogout: () => void;
 	onImportClick: () => void;
 	onAddAccountClick: () => void;
-	excludeSubscribed: boolean;
-	onToggleExcludeSubscribed: (v: boolean) => void;
 	bgSyncSupported: boolean;
 	bgSyncEnabled: boolean;
 	onToggleBgSync: (v: boolean) => void;
 }
 
 export function AppHeader({
-	activeTab,
-	onSwitch,
 	handles,
 	instanceHostname,
 	onLogout,
 	onImportClick,
 	onAddAccountClick,
-	excludeSubscribed,
-	onToggleExcludeSubscribed,
 	bgSyncSupported,
 	bgSyncEnabled,
 	onToggleBgSync,
@@ -68,39 +59,19 @@ export function AppHeader({
 		}
 	};
 
-	const tabClass = (tab: Tab) =>
-		`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
-			activeTab === tab
-				? "border-blue-500 text-blue-500"
-				: "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-		}`;
-
 	return (
 		<header className="flex-shrink-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 z-40">
 			<div className="max-w-2xl mx-auto">
 				<div className="flex items-center">
-					<h1 className="text-lg font-bold px-4 py-3 flex-shrink-0">subee</h1>
-					<nav className="flex flex-1">
-						<button
-							type="button"
-							onClick={() => onSwitch("subscribed")}
-							className={tabClass("subscribed")}
-						>
-							Subscribed
-							{handles.size > 0 && (
-								<span className="ml-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full px-1.5">
-									{handles.size}
-								</span>
-							)}
-						</button>
-						<button
-							type="button"
-							onClick={() => onSwitch("public")}
-							className={tabClass("public")}
-						>
-							Home
-						</button>
-					</nav>
+					<h1 className="text-lg font-bold px-4 py-3 flex-shrink-0">
+						subee
+						{handles.size > 0 && (
+							<span className="ml-2 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full px-1.5">
+								{handles.size}
+							</span>
+						)}
+					</h1>
+					<div className="flex-1" />
 					<div ref={menuRef} className="relative flex-shrink-0 px-2">
 						<button
 							type="button"
@@ -152,16 +123,6 @@ export function AppHeader({
 									<FontAwesomeIcon icon={faPlus} />
 									Subscribe to account
 								</button>
-								<label className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
-									<input
-										type="checkbox"
-										checked={excludeSubscribed}
-										onChange={(e) =>
-											onToggleExcludeSubscribed(e.target.checked)
-										}
-									/>
-									Exclude subscribed
-								</label>
 								{bgSyncSupported && (
 									<label className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
 										<input

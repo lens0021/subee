@@ -2,7 +2,6 @@ import type { mastodon } from "masto";
 import type { ReactNode, RefObject } from "react";
 import { Component, useEffect } from "react";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
-import { formatHandle } from "../mastodon";
 import { PostCard } from "./PostCard";
 
 class PostCardErrorBoundary extends Component<
@@ -39,7 +38,6 @@ interface PostListProps {
 	accessToken: string;
 	scrollContainerRef: RefObject<HTMLElement | null>;
 	onMount?: () => void;
-	excludeSubscribed?: boolean;
 	dividerPostId?: string | null;
 	onDividerRef?: (el: HTMLElement | null) => void;
 }
@@ -56,7 +54,6 @@ export function PostList({
 	accessToken,
 	scrollContainerRef,
 	onMount,
-	excludeSubscribed,
 	dividerPostId,
 	onDividerRef,
 }: PostListProps) {
@@ -82,9 +79,7 @@ export function PostList({
 	}
 
 	return (
-		<div
-			className={excludeSubscribed ? "[&_[data-subscribed]]:hidden" : undefined}
-		>
+		<div>
 			{error && (
 				<div className="px-4 py-2 text-center text-xs text-red-500 font-mono break-all">
 					{error} —{" "}
@@ -98,10 +93,6 @@ export function PostList({
 				</div>
 			)}
 			{posts.map((status) => {
-				// Judge subscription on the displayed (boosted) author so a boost of
-				// a subscribed account is hidden too under "Exclude subscribed".
-				const actual = status.reblog ?? status;
-				const subscribed = isSubscribed(formatHandle(actual.account));
 				return (
 					<PostCardErrorBoundary key={status.id}>
 						{dividerPostId === status.id && (
@@ -116,7 +107,6 @@ export function PostList({
 						)}
 						<div
 							data-post-id={status.id}
-							data-subscribed={subscribed || undefined}
 							style={{
 								contentVisibility: "auto",
 								containIntrinsicSize: "auto 400px",

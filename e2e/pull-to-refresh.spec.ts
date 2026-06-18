@@ -2,42 +2,11 @@ import { expect, test } from "@playwright/test";
 import {
 	authAndSubscribe,
 	CONTAINER,
+	dispatchTouch,
 	freshOnce,
 	makeFresh,
 	mockFeed,
 } from "./helpers";
-
-// Dispatch a touch sequence on the active scroll container. Splitting move and
-// end lets the test observe the indicator before release.
-async function dispatchTouch(
-	page: import("@playwright/test").Page,
-	type: "touchstart" | "touchmove" | "touchend",
-	clientY: number,
-) {
-	await page.evaluate(
-		({ sel, type, clientY }) => {
-			const el = document.querySelector(sel) as HTMLElement;
-			el.scrollTop = 0;
-			const touch = new Touch({
-				identifier: 1,
-				target: el,
-				clientX: 60,
-				clientY,
-			});
-			const active = type === "touchend" ? [] : [touch];
-			el.dispatchEvent(
-				new TouchEvent(type, {
-					cancelable: true,
-					bubbles: true,
-					touches: active,
-					targetTouches: active,
-					changedTouches: [touch],
-				}),
-			);
-		},
-		{ sel: CONTAINER, type, clientY },
-	);
-}
 
 test("pull down at the top triggers a poll and shows the indicator", async ({
 	page,

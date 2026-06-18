@@ -17,10 +17,6 @@ interface FloatingRefreshButtonProps {
 	// turns into a back-to-top jump (Subscribed only) instead of a feed signal.
 	scrolledDown?: boolean;
 	onScrollTop?: () => void;
-	// Show a plain "Refresh" while idle at the top. The Home tab has no pull-to-
-	// refresh so it relies on this; the Subscribed feed omits it (pull-to-refresh
-	// loads, and a back-to-top button takes the idle button's place).
-	idleRefresh?: boolean;
 }
 
 // Centered via mx-auto + w-fit (not -translate-x-1/2) so the buttons are free
@@ -43,7 +39,6 @@ export function FloatingRefreshButton({
 	atTop = true,
 	scrolledDown = false,
 	onScrollTop,
-	idleRefresh = false,
 }: FloatingRefreshButtonProps) {
 	// Scrolled a screen down: the floating button becomes a back-to-top jump.
 	// This wins over the top-only feed signals below — they're hidden down here.
@@ -101,20 +96,6 @@ export function FloatingRefreshButton({
 			>
 				<FontAwesomeIcon icon={faArrowUp} />
 				{`Load ${unloadedCount} account${unloadedCount > 1 ? "s" : ""}`}
-			</button>
-		);
-	}
-
-	if (idleRefresh) {
-		return (
-			<button
-				type="button"
-				data-testid="fab-refresh"
-				onClick={onPoll}
-				className={GRAY}
-			>
-				<FontAwesomeIcon icon={faArrowUp} />
-				Refresh
 			</button>
 		);
 	}

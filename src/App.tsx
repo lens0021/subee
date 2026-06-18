@@ -13,7 +13,6 @@ import {
 	setNativeBackgroundSync,
 } from "./native/android";
 import { LoginPage } from "./pages/LoginPage";
-import { PublicPage } from "./pages/PublicPage";
 import { SubscribedPage } from "./pages/SubscribedPage";
 import { importHandles } from "./store/subscriptions";
 import {
@@ -23,12 +22,9 @@ import {
 	saveBgSyncEnabled,
 	unregisterPeriodicSync,
 } from "./sync/registerPeriodicSync";
-import type { ScrollAnchor, Tab } from "./types";
+import type { ScrollAnchor } from "./types";
 
-const SCROLL_KEYS: Record<Tab, string> = {
-	public: "subee:scroll:public",
-	subscribed: "subee:scroll:subscribed",
-};
+const SCROLL_KEY = "subee:scroll:subscribed";
 
 const NO_ANCHOR: ScrollAnchor = { id: null, offset: 0 };
 
@@ -36,9 +32,9 @@ const NO_ANCHOR: ScrollAnchor = { id: null, offset: 0 };
 // WebView/process being recreated after the app sits in the background. Stored
 // as a post anchor (top post id + offset into it) rather than a pixel offset,
 // so it stays accurate across reloads even as content heights/images settle.
-function readAnchor(tab: Tab): ScrollAnchor {
+function readAnchor(): ScrollAnchor {
 	try {
-		const raw = localStorage.getItem(SCROLL_KEYS[tab]);
+		const raw = localStorage.getItem(SCROLL_KEY);
 		if (!raw) return NO_ANCHOR;
 		const parsed = JSON.parse(raw);
 		if (parsed && typeof parsed === "object" && "id" in parsed) {
@@ -50,8 +46,8 @@ function readAnchor(tab: Tab): ScrollAnchor {
 	return NO_ANCHOR;
 }
 
-function saveAnchor(tab: Tab, anchor: ScrollAnchor) {
-	localStorage.setItem(SCROLL_KEYS[tab], JSON.stringify(anchor));
+function saveAnchor(anchor: ScrollAnchor) {
+	localStorage.setItem(SCROLL_KEY, JSON.stringify(anchor));
 }
 
 // The post at the top of the viewport plus how far it's scrolled past.
@@ -72,13 +68,8 @@ function captureAnchor(el: HTMLElement): ScrollAnchor {
 
 export default function App() {
 	const { auth, status, error: authError, login, logout } = useAuth();
-	const [activeTab, setActiveTab] = useState<Tab>("subscribed");
-	const activeTabRef = useRef<Tab>("subscribed");
 	const [showImport, setShowImport] = useState(false);
 	const [showAddAccount, setShowAddAccount] = useState(false);
-	const [excludeSubscribed, setExcludeSubscribed] = useState(
-		() => localStorage.getItem("subee:excludeSubscribed") === "true",
-	);
 	const androidApp = isAndroidApp();
 	const bgSyncSupported = androidApp || isPeriodicSyncSupported();
 	const [bgSyncEnabled, setBgSyncEnabled] = useState(false);
@@ -125,7 +116,6 @@ export default function App() {
 			await unregisterPeriodicSync();
 		}
 	};
-	const publicScrollRef = useRef<HTMLDivElement>(null);
 	const subscribedScrollRef = useRef<HTMLDivElement>(null);
 	const {
 		handles,
@@ -136,83 +126,52 @@ export default function App() {
 		replaceAll,
 	} = useSubscriptions();
 
-	// Keep a ref so the popstate closure always sees the current tab
-	useEffect(() => {
-		activeTabRef.current = activeTab;
-	}, [activeTab]);
-
-	// Tab-aware history navigation
+	// Back-button affordance: when scrolled into the feed, the first Back press
+	// returns to the top instead of leaving the app; pressing Back again (already
+	// at the top) lets the browser/app exit. The seeded entry gives the first
+	// press something to intercept.
 	useEffect(() => {
 		history.scrollRestoration = "manual";
-		window.history.replaceState({ tab: "subscribed" }, "");
+		window.history.replaceState({ app: "root" }, "");
+		window.history.pushState({ app: "feed" }, "");
 
-		const onPopState = (e: PopStateEvent) => {
-			const tab = (e.state as { tab?: Tab } | null)?.tab;
-			if (tab === "public" || tab === "subscribed") {
-				activeTabRef.current = tab;
-				setActiveTab(tab);
-			} else {
-				// External history: scroll to top if scrolled, otherwise let exit
-				const container =
-					activeTabRef.current === "public"
-						? publicScrollRef.current
-						: subscribedScrollRef.current;
-				if (container && container.scrollTop > 0) {
-					container.scrollTo({ top: 0, behavior: "smooth" });
-					window.history.pushState({ tab: activeTabRef.current }, "");
-				}
-				// else: allow the browser to leave the app
+		const onPopState = () => {
+			const el = subscribedScrollRef.current;
+			if (el && el.scrollTop > 0) {
+				el.scrollTo({ top: 0, behavior: "smooth" });
+				window.history.pushState({ app: "feed" }, "");
 			}
+			// else: at the top — allow the browser to leave the app
 		};
 
 		window.addEventListener("popstate", onPopState);
 		return () => window.removeEventListener("popstate", onPopState);
 	}, []);
 
-	// Save scroll positions so they can be restored after a reload or after
+	// Save the scroll position so it can be restored after a reload or after
 	// returning to a backgrounded app. Gated on feedReady so it re-runs once the
-	// scroll containers actually exist — on first mount the app shows a loading
-	// screen and the refs are still null.
+	// scroll container actually exists — on first mount the app shows a loading
+	// screen and the ref is still null.
 	const feedReady = status === "authenticated" && !subsLoading && !!auth;
 	useEffect(() => {
-		const publicEl = publicScrollRef.current;
-		const subscribedEl = subscribedScrollRef.current;
-		if (!feedReady || !publicEl || !subscribedEl) return;
-		const savePublic = debounce(
-			() => saveAnchor("public", captureAnchor(publicEl)),
-			300,
-		);
-		const saveSubscribed = debounce(
-			() => saveAnchor("subscribed", captureAnchor(subscribedEl)),
-			300,
-		);
+		const el = subscribedScrollRef.current;
+		if (!feedReady || !el) return;
+		const save = debounce(() => saveAnchor(captureAnchor(el)), 300);
 		// Capture the latest position the moment the app is backgrounded, before
 		// Android can dispose the WebView (debounced saves may not have fired).
 		const saveOnHide = () => {
 			if (document.visibilityState !== "hidden") return;
-			savePublic.cancel();
-			saveSubscribed.cancel();
-			saveAnchor("public", captureAnchor(publicEl));
-			saveAnchor("subscribed", captureAnchor(subscribedEl));
+			save.cancel();
+			saveAnchor(captureAnchor(el));
 		};
-		publicEl.addEventListener("scroll", savePublic, { passive: true });
-		subscribedEl.addEventListener("scroll", saveSubscribed, { passive: true });
+		el.addEventListener("scroll", save, { passive: true });
 		document.addEventListener("visibilitychange", saveOnHide);
 		return () => {
-			publicEl.removeEventListener("scroll", savePublic);
-			subscribedEl.removeEventListener("scroll", saveSubscribed);
+			el.removeEventListener("scroll", save);
 			document.removeEventListener("visibilitychange", saveOnHide);
-			savePublic.cancel();
-			saveSubscribed.cancel();
+			save.cancel();
 		};
 	}, [feedReady]);
-
-	const switchTab = (tab: Tab) => {
-		window.history.pushState({ tab }, "");
-		setActiveTab(tab);
-		const ref = tab === "public" ? publicScrollRef : subscribedScrollRef;
-		requestAnimationFrame(() => ref.current?.focus({ preventScroll: true }));
-	};
 
 	const handleSubscribe = (handle: string) => {
 		if (isSubscribed(handle)) {
@@ -240,11 +199,6 @@ export default function App() {
 		setShowImport(false);
 	};
 
-	const handleToggleExcludeSubscribed = (v: boolean) => {
-		setExcludeSubscribed(v);
-		localStorage.setItem("subee:excludeSubscribed", String(v));
-	};
-
 	if (status === "loading") {
 		return (
 			<div className="min-h-screen flex items-center justify-center text-gray-400">
@@ -270,15 +224,11 @@ export default function App() {
 	return (
 		<div className="h-dvh flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
 			<AppHeader
-				activeTab={activeTab}
-				onSwitch={switchTab}
 				handles={handles}
 				instanceHostname={instanceHostname}
 				onLogout={handleLogout}
 				onImportClick={() => setShowImport(true)}
 				onAddAccountClick={() => setShowAddAccount(true)}
-				excludeSubscribed={excludeSubscribed}
-				onToggleExcludeSubscribed={handleToggleExcludeSubscribed}
 				bgSyncSupported={bgSyncSupported}
 				bgSyncEnabled={bgSyncEnabled}
 				onToggleBgSync={handleToggleBgSync}
@@ -304,10 +254,10 @@ export default function App() {
 			<main className="flex-1 overflow-hidden relative">
 				<div
 					ref={subscribedScrollRef}
+					data-testid="feed"
 					// biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard focus
 					tabIndex={0}
-					className={`absolute inset-0 overflow-y-auto transition-none outline-none${activeTab !== "subscribed" ? " -translate-x-full" : ""}`}
-					aria-hidden={activeTab !== "subscribed"}
+					className="absolute inset-0 overflow-y-auto outline-none"
 				>
 					<div className="max-w-2xl mx-auto">
 						<SubscribedPage
@@ -316,27 +266,8 @@ export default function App() {
 							accessToken={auth.accessToken}
 							onSubscribe={handleSubscribe}
 							isSubscribed={isSubscribed}
-							initialAnchor={readAnchor("subscribed")}
+							initialAnchor={readAnchor()}
 							scrollContainerRef={subscribedScrollRef}
-						/>
-					</div>
-				</div>
-				<div
-					ref={publicScrollRef}
-					// biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard focus
-					tabIndex={0}
-					className={`absolute inset-0 overflow-y-auto transition-none outline-none${activeTab !== "public" ? " -translate-x-full" : ""}`}
-					aria-hidden={activeTab !== "public"}
-				>
-					<div className="max-w-2xl mx-auto">
-						<PublicPage
-							instanceUrl={auth.instanceUrl}
-							accessToken={auth.accessToken}
-							onSubscribe={handleSubscribe}
-							isSubscribed={isSubscribed}
-							initialAnchor={readAnchor("public")}
-							scrollContainerRef={publicScrollRef}
-							excludeSubscribed={excludeSubscribed}
 						/>
 					</div>
 				</div>

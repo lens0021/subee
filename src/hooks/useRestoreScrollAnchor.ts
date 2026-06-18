@@ -4,7 +4,7 @@ import type { ScrollAnchor } from "../types";
 
 /**
  * Restore the saved scroll anchor once, after the first batch of posts has
- * loaded. Shared by the Subscribed and Home feeds.
+ * loaded.
  */
 export function useRestoreScrollAnchor(
 	scrollContainerRef: RefObject<HTMLElement | null>,
