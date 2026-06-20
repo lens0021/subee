@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.0](https://github.com/chaotic-ground/subee/compare/v0.13.2...v0.14.0) (2026-06-20)
+
+
+### Features
+
+* center the "New posts above" divider on cold-start entry ([09bb5a4](https://github.com/chaotic-ground/subee/commit/09bb5a44172757b035dd063b0e950cf4707dc29c))
+* center the "New posts above" divider on cold-start entry ([dc4ba6f](https://github.com/chaotic-ground/subee/commit/dc4ba6fa3e1fd6bac657bf20a49547c56bd38229))
+
 ## [0.13.2](https://github.com/chaotic-ground/subee/compare/v0.13.1...v0.13.2) (2026-06-18)
 
 
