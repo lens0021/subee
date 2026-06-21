@@ -8,7 +8,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { formatDistanceToNow } from "date-fns";
 import parse, { type DOMNode } from "html-react-parser";
 import type { mastodon } from "masto";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LazyLoadImage } from "react-lazy-load-image-component";
 import { fetchMisskeyReactions, type MisskeyReactions } from "../misskey";
 
@@ -274,6 +274,40 @@ export function PostCard({
 		setConfirmingUnsub(false);
 	};
 
+	// Long-press the timestamp to copy the post URL — for searching it up on the
+	// user's own instance. Bridgy Fed posts (e.g. bsky.brid.gy) expose the
+	// original Bluesky link in `url`, which a fediverse instance can't resolve via
+	// search; their ActivityPub `uri` lives on brid.gy and IS searchable, so
+	// prefer it for bridged posts.
+	const [copied, setCopied] = useState(false);
+	const longPressTimer = useRef<number | undefined>(undefined);
+	const didLongPress = useRef(false);
+	const copyPostUrl = useCallback(async () => {
+		const url = actual.uri?.includes("brid.gy")
+			? actual.uri
+			: (actual.url ?? actual.uri);
+		if (!url) return;
+		try {
+			await navigator.clipboard.writeText(url);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 1500);
+		} catch {
+			// Clipboard write can reject (focus loss, OEM policy) — fall back to a
+			// prompt so the user can still copy manually.
+			window.prompt("Copy post URL:", url);
+		}
+	}, [actual.uri, actual.url]);
+	const startLongPress = () => {
+		didLongPress.current = false;
+		longPressTimer.current = window.setTimeout(() => {
+			didLongPress.current = true;
+			void copyPostUrl();
+		}, 500);
+	};
+	const cancelLongPress = () => {
+		if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
+	};
+
 	useEffect(() => {
 		if (!actual.url) return;
 		fetchMisskeyReactions(actual.url)
@@ -472,10 +506,19 @@ export function PostCard({
 					href={actual.url ?? "#"}
 					target="_blank"
 					rel="noopener noreferrer"
-					title={absoluteTime}
-					className="hover:underline"
+					title={copied ? "Copied" : absoluteTime}
+					className="hover:underline select-none [-webkit-touch-callout:none]"
+					onTouchStart={startLongPress}
+					onTouchEnd={cancelLongPress}
+					onTouchMove={cancelLongPress}
+					onContextMenu={(e) => e.preventDefault()}
+					onClick={(e) => {
+						// A long-press already copied — swallow the tap so it doesn't also
+						// navigate to the post.
+						if (didLongPress.current) e.preventDefault();
+					}}
 				>
-					{relativeTime}
+					{copied ? "Copied!" : relativeTime}
 				</a>
 			</div>
 		</article>
