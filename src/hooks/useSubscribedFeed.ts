@@ -50,8 +50,7 @@ export function useSubscribedFeed(
 		(async () => {
 			// Pull in posts fetched by native background polling before reading
 			// the cache, so they appear immediately on app launch.
-			const { added, boundaryId } =
-				await consumeNativeSyncResults(instanceUrl);
+			const { added, boundaryId } = await consumeNativeSyncResults(instanceUrl);
 			const cached = await loadPostCache(instanceUrl);
 			if (cancelled) return;
 			// Only adopt cache if no posts have arrived yet (network may have
