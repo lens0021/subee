@@ -10,6 +10,11 @@ import parse, { type DOMNode } from "html-react-parser";
 import type { mastodon } from "masto";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LazyLoadImage } from "react-lazy-load-image-component";
+import {
+	type BlueskyStats,
+	extractBlueskyUri,
+	fetchBlueskyStats,
+} from "../bluesky";
 import { fetchMisskeyReactions, type MisskeyReactions } from "../misskey";
 
 const SHORTCODE_RE = /:([a-zA-Z0-9_]+):/g;
@@ -248,6 +253,7 @@ export function PostCard({
 		reactions: MisskeyReactions;
 		reactionEmojis: Record<string, string>;
 	} | null>(null);
+	const [blueskyStats, setBlueskyStats] = useState<BlueskyStats | null>(null);
 
 	// Unsubscribing is destructive and the button sits among the action icons, so
 	// require a confirming second tap: the first tap on "Subscribed" arms it
@@ -314,6 +320,24 @@ export function PostCard({
 			.then(setMisskeyReactions)
 			.catch(() => {});
 	}, [actual.url]);
+
+	// Bridgy Fed (bsky.brid.gy) posts originate on Bluesky, where most of the
+	// engagement actually happens; the bridged fediverse copy only sees
+	// fediverse-side interactions. Pull the AtProto-side counts and fold them into
+	// the displayed totals so the numbers reflect the post's real reach.
+	const blueskyUri = extractBlueskyUri(actual);
+	useEffect(() => {
+		if (!blueskyUri) return;
+		fetchBlueskyStats(blueskyUri)
+			.then(setBlueskyStats)
+			.catch(() => {});
+	}, [blueskyUri]);
+	const displayReplies =
+		(actual.repliesCount ?? 0) + (blueskyStats?.replyCount ?? 0);
+	const displayReblogs =
+		reblogsCount +
+		(blueskyStats ? blueskyStats.repostCount + blueskyStats.quoteCount : 0);
+	const displayFavourites = favouritesCount + (blueskyStats?.likeCount ?? 0);
 
 	// Guard against a non-empty but unparseable createdAt (corrupted cache /
 	// bridged status): an Invalid Date would throw in formatDistanceToNow and
@@ -469,7 +493,7 @@ export function PostCard({
 					</button>
 					<span className="flex items-center gap-1">
 						<FontAwesomeIcon icon={faComment} />
-						{actual.repliesCount}
+						{displayReplies}
 					</span>
 					<button
 						type="button"
@@ -480,7 +504,7 @@ export function PostCard({
 						}`}
 					>
 						<FontAwesomeIcon icon={faRetweet} />
-						{reblogsCount}
+						{displayReblogs}
 					</button>
 					<button
 						type="button"
@@ -491,8 +515,16 @@ export function PostCard({
 						}`}
 					>
 						<FontAwesomeIcon icon={faHeart} />
-						{favouritesCount}
+						{displayFavourites}
 					</button>
+					{blueskyStats && (
+						<span
+							title="Counts include Bluesky (AtProto) likes, reposts, and replies"
+							className="select-none"
+						>
+							🦋
+						</span>
+					)}
 					<a
 						href={actual.url ?? "#"}
 						target="_blank"
