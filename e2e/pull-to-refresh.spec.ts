@@ -6,6 +6,7 @@ import {
 	freshOnce,
 	makeFresh,
 	mockFeed,
+	pullToRefresh,
 } from "./helpers";
 
 test("pull down at the top triggers a poll and shows the indicator", async ({
@@ -52,4 +53,33 @@ test("a small pull below the threshold does not trigger a poll", async ({
 	await expect(sub.getByTestId("pull-indicator")).toHaveCount(0);
 	await expect(sub.getByTestId("fab-new")).toHaveCount(0);
 	expect(sinceIdCalls).toBe(0);
+});
+
+test("pull while 'N new' is staged flushes the buffer instead of polling", async ({
+	page,
+}) => {
+	let sinceCalls = 0;
+	await mockFeed(page, {
+		since: () => {
+			sinceCalls++;
+			// Only the first poll yields posts; a re-poll would change nothing, so
+			// the divider can only appear if the second pull flushes the buffer.
+			return sinceCalls === 1 ? { json: makeFresh(4) } : { json: [] };
+		},
+	});
+	await authAndSubscribe(page);
+
+	const sub = page.locator(CONTAINER);
+
+	// First pull polls → 4 posts staged behind the "N new" button.
+	await pullToRefresh(page);
+	await expect(sub.getByTestId("fab-new")).toContainText("4 new");
+	expect(sinceCalls).toBe(1);
+
+	// A pull while "N new" is up must do exactly what tapping it does: flush the
+	// buffer (draw the seam, drop the button) — NOT poll again.
+	await pullToRefresh(page);
+	await expect(sub.getByText("New posts above")).toBeVisible();
+	await expect(sub.getByTestId("fab-new")).toHaveCount(0);
+	expect(sinceCalls).toBe(1); // no second poll
 });

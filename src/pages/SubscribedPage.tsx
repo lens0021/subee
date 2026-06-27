@@ -4,12 +4,13 @@ import type { RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { AccountStatusGrid } from "../components/AccountStatusGrid";
 import { FloatingRefreshButton } from "../components/FloatingRefreshButton";
+import { resolveFloatingButton } from "../components/floatingButton";
 import { PostList } from "../components/PostList";
 import { PULL_THRESHOLD, usePullToRefresh } from "../hooks/usePullToRefresh";
 import { useRestoreScrollAnchor } from "../hooks/useRestoreScrollAnchor";
 import { useSubscribedFeed } from "../hooks/useSubscribedFeed";
-import { centerScrollOnDivider } from "./restoreScrollAnchor";
 import type { ScrollAnchor } from "../types";
+import { centerScrollOnDivider } from "./restoreScrollAnchor";
 
 interface SubscribedPageProps {
 	handles: Set<string>;
@@ -45,11 +46,6 @@ export function SubscribedPage({
 		boundaryNonce,
 		unloadedCount,
 	} = useSubscribedFeed(handles, instanceUrl, accessToken);
-
-	// Pull down at the top of the feed to load/refresh. Nothing loads on its own
-	// — this gesture (and the Refresh button) are the only way the feed loads:
-	// the first load after login, newly added accounts, and new-post polling.
-	const { pullDistance, armed } = usePullToRefresh(scrollContainerRef, refresh);
 
 	// Both a user-initiated flush ("N new" tap, flushNonce) and the mount-seeded
 	// boundary divider (cold start after a background sync — the "tapped the
@@ -104,6 +100,30 @@ export function SubscribedPage({
 		el.addEventListener("scroll", onScroll, { passive: true });
 		return () => el.removeEventListener("scroll", onScroll);
 	}, [scrollContainerRef]);
+
+	// The single source of truth for the floating button: which one is showing
+	// and what it does. Both the rendered button and the pull-to-refresh gesture
+	// consume this same descriptor, so a pull does exactly what tapping the
+	// visible button would — flush "N new", load pending accounts, or (during a
+	// poll) nothing. When no button is up (idle at the top), a pull polls.
+	const floatingButton = resolveFloatingButton(
+		{ stagedCount, unloadedCount, pollProgress, atTop, scrolledDown },
+		{
+			onFlush: flushBuffer,
+			onLoad: refresh,
+			onScrollTop: () =>
+				scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" }),
+		},
+	);
+
+	// Pull down at the top of the feed. Nothing loads on its own — this gesture
+	// (and the floating button) are the only way the feed loads. A pull mirrors
+	// the visible button's action; with no button, it polls for new posts.
+	const { pullDistance, armed } = usePullToRefresh(scrollContainerRef, () => {
+		if (floatingButton) floatingButton.onTap?.();
+		else refresh();
+	});
+
 	// The per-account dots are an initial-load / failure indicator only. A
 	// background poll over an already-loaded feed flips accounts to "loading"
 	// too, but must not show the dots there — it would look like a full reload
@@ -157,28 +177,12 @@ export function SubscribedPage({
 					/>
 				</div>
 			)}
-			<FloatingRefreshButton
-				onPoll={refresh}
-				onRefresh={flushBuffer}
-				stagedCount={stagedCount}
-				unloadedCount={unloadedCount}
-				pollProgress={pollProgress}
-				atTop={atTop}
-				scrolledDown={scrolledDown}
-				onScrollTop={() =>
-					scrollContainerRef.current?.scrollTo({
-						top: 0,
-						behavior: "smooth",
-					})
-				}
-			/>
+			<FloatingRefreshButton button={floatingButton} />
 			{showGrid && <AccountStatusGrid statuses={accountStatuses} />}
 			{posts.length === 0 && !loading ? (
 				<div className="p-8 text-center text-gray-400">
 					<p className="text-lg font-medium mb-2">Slide to load</p>
-					<p className="text-sm">
-						Pull down or tap Refresh to load your feed.
-					</p>
+					<p className="text-sm">Pull down or tap Refresh to load your feed.</p>
 				</div>
 			) : (
 				<PostList
